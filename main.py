@@ -63,9 +63,12 @@ from qiskit.visualization import plot_histogram
 
 # Import our libraries...
 from logs import logger
+from termcolor import colored
+
+# our Grover libs
 from oracles import create_column_oracle, create_row_oracle
 from lib import initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_IBM
+from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
 
 
 ########################################################
@@ -88,9 +91,9 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["1 0 0 "] ,
-    ["0 0 1 "] ,
-    ["0 0 0 "] ,    
+    ["0 0 0 "] ,
+    ["0 1 0 "] ,
+    ["0 0 0 "] ,
 ]
 
 
@@ -103,7 +106,8 @@ MAKE_IT_REAL = False
 
 # Which external provider?
 #SEND_TO = "IONQ"
-SEND_TO = "IBM"
+#SEND_TO = "IBM"
+SEND_TO = "QUANTUMINSPIRE"
 
 # ----------------------------
 # Are we validating the oracle? Used to validate the Oracle
@@ -122,8 +126,29 @@ inp_map_string="".join(["".join(item) for column in inp_map_string for item in c
 #############################################
 
 
+## ---------------------------------------------
+## Show map
+def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None):
+    print ("")
+    print ("          %s" %" ".join([str(each) for each in range(GRID_WIDTH)]))
+    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
+    index=-1
+    for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
+        index+=1
+        if index==selected_row:
+            print (  colored("       %s| %s  | " %(index, " ".join(each_map_line)) , 'red', attrs=['bold'] ) )
+        else:
+            line=""
+            col_index=-1
+            for each_column_item in each_map_line:
+                col_index+=1
+                if col_index==selected_column:
+                    line = line + colored(each_column_item, "red", attrs=['bold']) + " "
+                else:
+                    line = line + each_column_item + " "
 
-
+            print ("       %s| %s | " %(index, line))
+    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
 
 ## ---------------------------------------------
 ## Initialize the circuit and set some registers
@@ -131,21 +156,13 @@ def init_circuit():
     logger.info ("STARTING FOR:")
     logger.info ("MAP:")
     logger.debug ("========> MAP ")
-    
-    print ("")
-    print ("          %s" %" ".join([str(each) for each in range(GRID_WIDTH)]))
-    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
-    index=-1
-    for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
-        index+=1
-        print ("       %s| %s | " %(index, " ".join(each_map_line)))
-    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
-    
+
+    show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE)
+
     logger.debug ("<======== MAP ")
     logger.info ("Looking in rows for: | %s |" %" ".join(inp_pattern_row))
     logger.info ("Looking in cols for: | %s |" %" ".join(inp_pattern_col))
     
-
     # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
     num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
     logger.info ("Number of qubits in search space: | %s | (2x %i)" %(num_s_bits * 2, num_s_bits ))
@@ -312,7 +329,10 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         if make_it_real:
             if SEND_TO=="IONQ":
                 logger.info ("SENDING TO IONQ")
-                counts = execute_on_IONQ(qc, 4500)
+                counts = execute_on_IONQ(qc, 500)
+            elif SEND_TO=="QUANTUMINSPIRE":
+                logger.info ("SENDING TO QUANTUM INSPIRE")
+                counts = execute_on_QuantumInspire(qc, 500)                
             else:
                 logger.info ("SENDING TO REAL IBM COMPUTER")
                 counts = execute_on_IBM(qc, 3500)
@@ -358,9 +378,16 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
     logger.debug ("ROWS: %s" %rows)    
     logger.debug ("COLUMNS: %s" %cols)
 
-    logger.info ("PROPOSED ROW: %s" %list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
-    logger.info ("PROPOSED COLUMN: %s" %list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
+    proposed_row = list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
+    proposed_column = list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
+    logger.info ("PROPOSED ROW: %s" %proposed_row)
+    logger.info ("PROPOSED COLUMN: %s" %proposed_column)
 
+    show_map(inp_map_string, 
+        GRID_WIDTH, BYTE_SIZE, 
+        proposed_row, 
+        proposed_column
+    )
 
  
 ##  ------------------------- MAIN  ------------------------------------------------------------------

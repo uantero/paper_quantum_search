@@ -16,7 +16,7 @@ class CustomFormatter(logging.Formatter):
     debugformat = "    🔸   %(message)s" #(%(filename)s:%(lineno)d)"
 
     FORMATS = {
-        logging.DEBUG: grey + debugformat + reset,
+        logging.DEBUG: purple + debugformat + reset,
         logging.INFO: yellow + infoformat + reset,
         logging.WARNING: yellow + format + reset,
         logging.ERROR: red + format + reset,

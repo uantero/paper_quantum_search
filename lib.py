@@ -5,6 +5,9 @@ from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister
 from qiskit.circuit.library import MCXGate
 import os, sys
 from logs import logger
+from dotenv import load_dotenv
+
+
 
 def initialize_H(qc, qubits):
     """Apply a H-gate to 'qubits' in qc"""
@@ -124,3 +127,24 @@ def execute_on_IONQ(qc, num_shots=500):
     result=job.get_counts()
  
     return result    
+
+def execute_on_QuantumInspire(qc, num_shots=500):
+    from quantuminspire.qiskit import QI
+
+    from quantuminspire.api import QuantumInspireAPI
+    from quantuminspire.credentials import get_authentication, enable_account
+    from quantuminspire.credentials import enable_account
+    
+    QI_URL = os.getenv('API_URL', 'https://api.quantum-inspire.com/')
+
+    QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
+
+    qi_backend = QI.get_backend('QX single-node simulator')  
+    shot_count = 512
+
+    circuit = transpile(qc, backend=qi_backend)
+    qi_job = qi_backend.run(circuit, shots=num_shots)
+    qi_result = qi_job.result()
+    result = qi_result.get_counts(circuit)
+ 
+    return result        
