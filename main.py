@@ -61,13 +61,14 @@ from qiskit.circuit.library import MCXGate
 # import basic plot tools
 from qiskit.visualization import plot_histogram
 
- 
-MAKE_IT_REAL = True
-SEND_TO = "IONQ"
-#SEND_TO = "IBM"
-# ----------------------------
-# Used to validate the Oracle
-test_oracle = False
+# Import our libraries...
+from logs import logger
+from oracles import create_column_oracle, create_row_oracle
+from lib import initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
+from lib import execute_on_IONQ, execute_on_IBM
+
+
+########################################################
 
 
 """
@@ -83,6 +84,8 @@ inp_map_string = [
 ]
 """
 
+#############################################
+##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
     ["1 0 1 "] ,
@@ -91,9 +94,19 @@ inp_map_string = [
 ]
 
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  "11" # row 2
-inp_pattern_col=  "11" # col 1
+inp_pattern_row=  "10" # row ?
+inp_pattern_col=  "01" # col ?
 
+# Send it to an external provider?
+MAKE_IT_REAL = False
+
+# Which external provider?
+#SEND_TO = "IONQ"
+SEND_TO = "IBM"
+
+# ----------------------------
+# Are we validating the oracle? Used to validate the Oracle
+TEST_ORACLE = False
 
 # Byte size, measured in bits... each of them is considered a "unit"
 # Bytes are only written "in horizontal"
@@ -104,464 +117,242 @@ GRID_HEIGHT = int(len(inp_map_string) )
 # Join inp_map_string into a single string
 inp_map_string="".join(["".join(item) for column in inp_map_string for item in column]).replace(" ","").replace("X","1")
 
- 
-print ("STARTING FOR:")
-print ("MAP:")
-print ("========")
-for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
-    print (each_map_line)
- 
-print ("")
-print ("Looking in rows for: %s" %inp_pattern_row)
-print ("Looking in cols for: %s" %inp_pattern_col)
- 
-# Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
-num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-print ("Number of qubits in search space: %s (2x %i)" %(num_s_bits * 2, num_s_bits ))
-print ("=================================")
- 
-row_searchspace=QuantumRegister(num_s_bits, "cs")
-column_searchspace=QuantumRegister(num_s_bits, "rs")
-map_string=QuantumRegister(len(inp_map_string), "map_string")
-row_substring=QuantumRegister(len(inp_pattern_row), "row_substring")
-column_substring=QuantumRegister(len(inp_pattern_col), "column_substring")
-temporary=QuantumRegister(  len(row_substring) , "temporary")
- 
-oracle_row_output=QuantumRegister(1, "row_output")
-oracle_column_output=QuantumRegister(1, "column_output")
-ancillary=QuantumRegister(1, "ancillary") # Used to mark that the substring was already found
+##  ----------- /GLOBALS --------------------
+#############################################
 
-cbit_row_result = ClassicalRegister(len(row_searchspace), "cbit_row_result")
-cbit_column_result = ClassicalRegister(len(column_searchspace), "cbit_column_result")
- 
-qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_row_output, oracle_column_output, ancillary, cbit_row_result, cbit_column_result)
 
-# Let's create the circuit
-#if test_oracle:
-#    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_row_output, oracle_column_output, ancillary, cbit_row_result, cbit_column_result)
-#else:
-#    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_row_output, oracle_column_output, ancillary)
- 
-def initialize_H(qc, qubits):
-    """Apply a H-gate to 'qubits' in qc"""
-    for q in qubits:
-        qc.h(q)
-    return qc
- 
-# Check for equality
-def XNOR(qc,a,b,output):
-    qc.cx(a,output)
-    qc.cx(b,output)
-    qc.x(output)
- 
-# Check for inequality
-def XOR(qc,a,b,output):
-    qc.cx(a,output)
-    qc.cx(b,output)
- 
-def toffoli_general(qr, control, target):
-    qr.append(MCXGate(num_ctrl_qubits=len(control)), control + [target])
- 
-def get_qubit_index_list(qc, register):
-    return list([qc.find_bit(qarg)[0] for qarg in register])
- 
-def add_measurement2(qc, what):
-    num_bits = len(what)
-    meas = QuantumCircuit(num_bits, num_bits)
-    meas.measure(list(range(num_bits)), list(range(num_bits)))
-    qc.compose(meas, inplace=True, qubits=what)
- 
-def add_measurement(qc, what, name):
-    num_bits = len(what)
-    measuring_c = ClassicalRegister(num_bits, name)
-    meas = QuantumCircuit(what, measuring_c)
-    meas.measure(what, measuring_c)
-    qc.compose(meas, inplace=True, qubits=what)    
- 
-def diffusion(qc: QuantumCircuit, search_space, output_qubit):
-    """Apply a diffusion circuit to the register 's' in qc"""
-    qc.h(search_space)
-    qc.x(search_space)
- 
-    qc.mcx(search_space, output_qubit)
-    qc.z(output_qubit)
- 
-    qc.x(search_space)
-    qc.h(search_space)
- 
-def execute_on_IBM(qc, num_shots=500):
-    from qiskit_ibm_runtime import QiskitRuntimeService
-    from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
- 
-    # ###
-    TOKEN = os.environ["IBM_TOKEN"]
- 
-    OPTIMIZATION_LEVEL=3
- 
-    service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN)    
-    print ("Sending real JOB to IBM")
-    backend = service.least_busy(operational=True, simulator=False)
-    sampler = Sampler(backend)
-    job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
-    print(f"job id: {job.job_id()}")
-    results = job.result()
 
-    print (results)
- 
-    row = results[0].data.cbit_row_result.get_counts()
-    column = results[0].data.cbit_column_result.get_counts()
-    print ("COLUMN:")
-    print (column)
-    answers = {k: v for k, v in sorted(column.items(), key=lambda item: item[1], reverse=True)}
-    print ("COLUMN Results")
-    for each in answers:
-        bits = each[::-1]
-        print ("b'%s' [Columna: %s] --> %s" %(each, int(bits, 2), answers[each]))    
 
-    print ("ROW:")
-    print (row)
-    answers = {k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}
-    print ("ROW Results")
-    for each in answers:
-        bits = each[::-1]
-        print ("b'%s' [Fila: %s] --> %s" %(each, int(bits, 2), answers[each]))    
 
-    sys.exit(0)
+## ---------------------------------------------
+## Initialize the circuit and set some registers
+def init_circuit():
+    logger.info ("STARTING FOR:")
+    logger.info ("MAP:")
+    logger.debug ("========> MAP ")
+    
+    print ("         %s" %"_".join(["" for each in range(GRID_WIDTH+3)]))
+    for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
+        print ("        | %s | " %each_map_line)
+    print ("         %s" %"_".join(["" for each in range(GRID_WIDTH+3)]))
+    
+    logger.debug ("<======== MAP ")
+    logger.debug ("Looking in rows for: | %s |" %inp_pattern_row)
+    logger.debug ("Looking in cols for: | %s |" %inp_pattern_col)
+    
+    # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
+    num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
+    logger.debug ("Number of qubits in search space: | %s | (2x %i)" %(num_s_bits * 2, num_s_bits ))
     
 
- 
-    return results
-
-def execute_on_IONQ(qc, num_shots=500):
-    from qiskit_ionq import IonQProvider
- 
-    ## Check your .env file
-    TOKEN = os.environ["IONQ_TOKEN"]
-
-    provider = IonQProvider(TOKEN)
+    # Create required registers 
+    row_searchspace=QuantumRegister(num_s_bits, "cs")
+    column_searchspace=QuantumRegister(num_s_bits, "rs")
+    map_string=QuantumRegister(len(inp_map_string), "map_string")
+    row_substring=QuantumRegister(len(inp_pattern_row), "row_substring")
+    column_substring=QuantumRegister(len(inp_pattern_col), "column_substring")
+    temporary=QuantumRegister(  len(row_substring) , "temporary")
     
-    simulator_backend = provider.get_backend("ionq_simulator")
+    oracle_row_output=QuantumRegister(1, "row_output")
+    oracle_column_output=QuantumRegister(1, "column_output")
+    ancillary=QuantumRegister(1, "ancillary") # Used to mark that the substring was already found
 
- 
-    OPTIMIZATION_LEVEL=3
-     
-    print ("Sending real JOB to IONQ")
-    job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
-        "noise": {"model": "aria-1"}}
-    )
+    cbit_row_result = ClassicalRegister(len(row_searchspace), "cbit_row_result")
+    cbit_column_result = ClassicalRegister(len(column_searchspace), "cbit_column_result")
 
-    result=job.get_counts()
- 
-    return result    
- 
-# --------------------- ORACLE --------------------------------
-#Oracle that "marks" the output when a difference is found between two strings
- 
-"""
-inp_map_string = (
-    "000" +
-    "100" +
-    "000"
-)
-inp_map_string = (
-    "012" +
-    "345" +
-    "678"
-)
- 
-  036
-  147
-  258
-"""
- 
-# ORACLE FOR VERTICAL SEARCH
-def create_column_oracle(qc, searchspace, map_string, column_substring, temporary, oracle_output, ancillary):    
 
-    format_string = "{:0" + str(len(searchspace)) + "b}"
-   
-    # Ok! Let's look in columns...
-    # Consider bytes...
-    def split_in_columns(what, width):
-        columns={}
-        for each_column_index in range(width):
-            columns[each_column_index]=[]
-        column_index=-1
-        for each in [what[i:i+BYTE_SIZE] for i in range(0, len(what), BYTE_SIZE)]:
-            column_index=column_index+1
-            columns[column_index].append(each)        
-            if column_index+1>=width:
-                column_index=-1
-        return list(columns.values())
+    # Creating circuit
+    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_row_output, oracle_column_output, ancillary, cbit_row_result, cbit_column_result)
 
-    map_in_cols =  split_in_columns(map_string, GRID_WIDTH)
-    col=-1
-    for each_map_col in map_in_cols:
-        col = col + 1
-        index=-1
-        pos_in_binary = format_string.format(col)
-        # Flip search space
-        flipped_s = []
-        for k, pos in enumerate(pos_in_binary):
-            if pos == "0":
-                flipped_s.append(searchspace[k])
-                qc.x(searchspace[k])            
+    return {
+        "qc": qc,
+        "searchspace":{
+            "row_searchspace": row_searchspace,
+            "column_searchspace": column_searchspace
+        },
+        "inputs": {
+            "map_string": map_string,
+            "row_substring": row_substring,
+            "column_substring": column_substring
+        },
+        "outputs": {
+            "oracle_row_output": oracle_row_output,
+            "oracle_column_output": oracle_column_output
+        },
+        "temporary": {
+            "temporary": temporary,
+            "ancillary": ancillary
+        },
+        "result": {
+            "cbit_row_result": cbit_row_result,
+            "cbit_column_result": cbit_column_result
+        }        
+    }
 
-        # We should match all bits between string and substring
+
+## ---------------------------------------------
+## Main function
+def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT):    
+
+    results = init_circuit()
+
+    qc = results["qc"]
+    row_searchspace = results["searchspace"]["row_searchspace"]
+    column_searchspace = results["searchspace"]["column_searchspace"]
+    map_string = results["inputs"]["map_string"]
+    row_substring = results["inputs"]["row_substring"]
+    column_substring = results["inputs"]["column_substring"]
+    oracle_row_output = results["outputs"]["oracle_row_output"]
+    oracle_column_output = results["outputs"]["oracle_column_output"]
+    temporary = results["temporary"]["temporary"]
+    ancillary = results["temporary"]["ancillary"]
+    cbit_row_result = results["result"]["cbit_row_result"]
+    cbit_column_result = results["result"]["cbit_column_result"]
+
+
+    # ------------------------
+    # Used to validate the Oracle        
+    # If set, it is used here to validate that the oracle works as expected
+    if TEST_ORACLE: # Just to develop/debug the oracle...
+        LOOK_IN_ROW = 0
+        LOOK_IN_COLUMN = 1
+        format_string = "{:0"+str(num_s_bits)+"b}"
+        logger.debug ("Looking in row position: %s [binary %s]" %(LOOK_IN_ROW, format_string.format(LOOK_IN_ROW)))
+        logger.debug ("Looking in col position: %s [binary %s]" %(LOOK_IN_COLUMN, format_string.format(LOOK_IN_COLUMN)))
+
+        set_inputs(qc, format_string.format(LOOK_IN_ROW), row_searchspace)
+        set_inputs(qc, format_string.format(LOOK_IN_COLUMN), column_searchspace)    
+        set_inputs(qc, inp_map_string, map_string)
+        set_inputs(qc, inp_pattern_row, row_substring)
+        set_inputs(qc, inp_pattern_col, column_substring)    
+
+        check = "row" # "column"
+
+        if check=="row":
+            # ROW
+            qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+            # Measure oracle output for validation
+            add_measurement(qc, oracle_row_output, "row")
+            #qc.measure(oracle_row_output, cbit_row_result)
         
-        #print ("POS IN BINARY: %s" %pos_in_binary)
-        for each_map_item_index in range(len(each_map_col) - int(len(column_substring)/BYTE_SIZE)+1):
-            used_bits = []
-            for each_substring_bit_index in range( int(len(column_substring)/BYTE_SIZE) ):
-                #print (each_map_col[each_map_item_index + each_substring_bit_index])
-                #print ("%s - %s" %(each_map_item_index + each_substring_bit_index, each_substring_bit_index))
-                for each_bit in range(BYTE_SIZE):
-                    XNOR(qc,each_map_col[each_map_item_index + each_substring_bit_index][each_bit], column_substring[BYTE_SIZE*each_substring_bit_index+each_bit], temporary[BYTE_SIZE*each_substring_bit_index+each_bit])
-                
-                    # Keep track of used "temporary" bits
-                    used_bits.append( temporary[BYTE_SIZE*each_substring_bit_index+each_bit] )
-            #print ("...")
-            # Generate output            
-            qc.cx( ancillary, oracle_output[0]) # Used to reset output if it was previously set (in case we have multiple coincidences)
-            qc.mcx( list(searchspace) + list(used_bits) , oracle_output[0])
-            qc.cx( oracle_output[0] , ancillary)                         
+        else:    
+            # COL
+            #qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary BYTE_SIZE, GRID_WIDTH))
+            # Measure oracle output for validation    
+            #add_measurement(qc, oracle_column_output, "vertical")
+            #qc.measure(column_searchspace, list(range(num_s_bits)))
+            pass
 
-            # Revert status of "temporary"
-            for each_substring_bit_index in range( int(len(column_substring)/BYTE_SIZE) ):
-                #print (each_map_col[each_map_item_index + each_substring_bit_index])
-                #print ("%s - %s" %(each_map_item_index + each_substring_bit_index, each_substring_bit_index))
-                for each_bit in range(BYTE_SIZE):
-                    XNOR(qc,each_map_col[each_map_item_index + each_substring_bit_index][each_bit], column_substring[BYTE_SIZE*each_substring_bit_index+each_bit], temporary[BYTE_SIZE*each_substring_bit_index+each_bit])
-
-        #print ("=== %s / ====" %(pos_in_binary))
-
-        # Revert Search space
-        if len(flipped_s):
-            qc.x(flipped_s)
-
-
- 
-    # Revert things back!
- 
-    #toffoli_general(qc, get_qubit_index_list(qc, temporary), get_qubit_index_list(qc, oracle_output)[0])
-    #toffoli_general(qc, get_qubit_index_list(qc, temporary), get_qubit_index_list(qc, oracle_output)[0])
- 
-    #qc.mcx(temporary, oracle_output[0])
-
-
-    return qc
-
-
-# ORACLE FOR HORIZONTAL SEARCH
-def create_row_oracle(qc, searchspace, map_string, row_substring, temporary, oracle_output, ancillary):
-    format_string = "{:0" + str(len(searchspace)) + "b}"
-   
-    # Ok! Let's look in rows...
-    # Consider bytes...
-    def split_in_rows(what, width):
-        rows=[]
-        each_row=[]
-        for each in [what[i:i+BYTE_SIZE] for i in range(0, len(what), BYTE_SIZE)]:
-            each_row.append(each)
-            if len(each_row)>=width:
-                rows.append(each_row)
-                each_row=[]
-        return rows   
-    
-    map_in_rows =  split_in_rows(map_string, GRID_WIDTH)
-    row=-1
-    for each_map_row in map_in_rows:
-        row = row + 1
-        index=-1
-        pos_in_binary = format_string.format(row)
-        # Flip search space
-        flipped_s = []
-        for k, pos in enumerate(pos_in_binary):
-            if pos == "0":
-                flipped_s.append(searchspace[k])
-                qc.x(searchspace[k])            
-
-        # We should match all bits between string and substring
-        
-        for each_map_item_index in range(len(each_map_row) - int(len(row_substring)/BYTE_SIZE)+1):
-            used_bits = []
-            for each_substring_bit_index in range( int(len(row_substring)/BYTE_SIZE) ):
-                #print ("%s - %s" %(each_map_item_index + each_substring_bit_index, each_substring_bit_index))
-                for each_bit in range(BYTE_SIZE):
-                    XNOR(qc,each_map_row[each_map_item_index + each_substring_bit_index][each_bit], row_substring[BYTE_SIZE*each_substring_bit_index+each_bit], temporary[BYTE_SIZE*each_substring_bit_index+each_bit])
-                    # Keep track of used "temporary" bits
-                    used_bits.append(temporary[BYTE_SIZE*each_substring_bit_index+each_bit])
-                #print ("   --> %s %s" %((each_map_item_index + each_substring_bit_index), each_substring_bit_index))
-            #print ("...")
-
-            # Generate output            
-            qc.cx( ancillary, oracle_output[0]) # Used to reset output if it was previously set (in case we have multiple coincidences)
-            qc.mcx( list(searchspace) + list(used_bits) , oracle_output[0])
-            qc.cx( oracle_output[0] , ancillary)             
-            
-
-            # Revert status of "temporary"
-            for each_substring_bit_index in range( int(len(row_substring)/BYTE_SIZE) ):
-                #print ("%s - %s" %(each_map_item_index + each_substring_bit_index, each_substring_bit_index))
-                for each_bit in range(BYTE_SIZE):
-                    XNOR(qc,each_map_row[each_map_item_index + each_substring_bit_index][each_bit], row_substring[BYTE_SIZE*each_substring_bit_index+each_bit], temporary[BYTE_SIZE*each_substring_bit_index+each_bit])
-
-
-#        print ("=== %s / ====" %(pos_in_binary))
-
-
-        # Revert Search space
-        if len(flipped_s):
-            qc.x(flipped_s)
- 
-    # Revert things back!
- 
-    #toffoli_general(qc, get_qubit_index_list(qc, temporary), get_qubit_index_list(qc, oracle_output)[0])
-    #toffoli_general(qc, get_qubit_index_list(qc, temporary), get_qubit_index_list(qc, oracle_output)[0])
- 
-    #qc.mcx(temporary, oracle_output[0])
-
-
-    return qc
-
-
-# Set inputs (the pattern and the long string)
-def set_inputs(qc, inp_w, w):
-    """Negate the initial |0> states of w and p corresponding to the input"""
-    for i, c in enumerate(inp_w):
-        if c == "1":
-            qc.x(w[i])
- 
-    return qc
-
-
-# 
-# Used to validate the Oracle
-#test_oracle = True
- 
-if test_oracle:
-    LOOK_IN_ROW = 0
-    LOOK_IN_COLUMN = 1
-    format_string = "{:0"+str(num_s_bits)+"b}"
-    print ("Looking in row: %s [%s]" %(LOOK_IN_ROW, format_string.format(LOOK_IN_ROW)))
-    print ("Looking in col: %s [%s]" %(LOOK_IN_COLUMN, format_string.format(LOOK_IN_COLUMN)))
-
-    set_inputs(qc, format_string.format(LOOK_IN_ROW), row_searchspace)
-    set_inputs(qc, format_string.format(LOOK_IN_COLUMN), column_searchspace)    
-    set_inputs(qc, inp_map_string, map_string)
-    set_inputs(qc, inp_pattern_row, row_substring)
-    set_inputs(qc, inp_pattern_col, column_substring)    
-    # ROW
-    qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary))
-    # Measure oracle output for validation
-    add_measurement(qc, oracle_row_output, "row")
-    #qc.measure(oracle_row_output, cbit_row_result)
- 
-    # COL
-    #qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary))
-    # Measure oracle output for validation    
-    #add_measurement(qc, oracle_column_output, "vertical")
-    #qc.measure(column_searchspace, list(range(num_s_bits)))
-
-    num_shots = 100
-    from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
-    provider = BasicAerProvider()    
-    backend = provider.get_backend()
-    result = backend.run(transpile(qc, backend), shots=num_shots).result()
-    counts = result.get_counts()
-
-    print (counts)
-    sys.exit(0)
-
- 
-# "Real" grover search (if not validating)
-else:
-    initialize_H(qc, row_searchspace)
-    initialize_H(qc, column_searchspace)
-    set_inputs(qc, inp_map_string, map_string)
-    set_inputs(qc, inp_pattern_col, row_substring)
-    set_inputs(qc, inp_pattern_row, column_substring)    
-   
-    #N = len(inp_map_string)/(num_s_bits)
-    N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
-    num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )           
-    
-   
-    print ("Estimated Grover repetitions: %s" %num_repetitions)
-    
-    # Repeat!
-    # ROWS
-    for repetition in range(num_repetitions):
-        qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary))
-        diffusion(qc, row_searchspace, oracle_row_output)
-        
-        qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary))
-        diffusion(qc, column_searchspace, oracle_column_output)    
-        
-    qc.measure(column_searchspace, cbit_column_result)
-    qc.measure(row_searchspace, cbit_row_result)
-    
-    #add_measurement(qc, row_searchspace, name="row")
-    #add_measurement(qc, column_searchspace, name="column")
-
-    # Columns
-    #for repetition in range(num_repetitions):
-    #    qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary))
-    #diffusion(qc, column_searchspace, oracle_column_output)    
-    #add_measurement(qc, column_searchspace, name="vert")
-    
-    # Add measure for searchspace
-    #add_measurement(qc, row_searchspace, name="horiz")
-    #add_measurement(qc, row_searchspace, name="horiz")
-    #
-    #qc.measure(column_searchspace, cbit_column_result)
-    #qc.measure(row_searchspace, cbit_row_result)
- 
-    # -- real ---
-    make_it_real = MAKE_IT_REAL    
-    if make_it_real:
-        if SEND_TO=="IONQ":
-            print ("SENDING TO IONQ")
-            counts = execute_on_IONQ(qc, 4500)
-        else:
-            print ("SENDING TO REAL IBM COMPUTER")
-            counts = execute_on_IBM(qc, 4500)
- 
-    else:
-        print ("SIMULATING LOCALLY")
-        num_shots=300
-        #from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
-        #provider = BasicAerProvider()    
-        #backend = provider.get_backend()
-        backend = Aer.get_backend('qasm_simulator')
-        tqc = transpile(
-            qc, optimization_level=2
-        )
-        result = backend.run(tqc, shots=num_shots).result()
+        num_shots = 100
+        from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
+        provider = BasicAerProvider()    
+        backend = provider.get_backend()
+        result = backend.run(transpile(qc, backend), shots=num_shots).result()
         counts = result.get_counts()
 
-    #execute_on_IBM(qc, num_shots=500):
+        logger.info (counts)
 
-# Get data     
-print (counts)
-print ("========================")
-answers = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
-print ("Results")
-rows={}
-cols={}
-for each in answers:
-    bits = each[::-1]
-    row,column = bits.split(" ")
-    print ("b'%s' [Fila: %s, Col: %s] --> %s" %(each, int(row, 2), int(column, 2), answers[each]))
-    if int(row, 2) not in rows:
-        rows[int(row, 2)]=0
-    rows[int(row, 2)]+=answers[each]
+        # Exit
+        sys.exit(0)
 
-    if int(column, 2) not in cols:
-        cols[int(column, 2)]=0
-    cols[int(column, 2)]+=answers[each]    
+    
+    # -----------------------------------------------
+    # "REAL" grover search 
+    # We use the grover oracle + diffussion
+    else:
+        initialize_H(qc, row_searchspace)
+        initialize_H(qc, column_searchspace)
+        set_inputs(qc, inp_map_string, map_string)
+        set_inputs(qc, inp_pattern_col, row_substring)
+        set_inputs(qc, inp_pattern_row, column_substring)    
+            
+        N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
+            
+        num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )           
+                
+    
+        logger.info ("Estimated Grover repetitions: %s" %num_repetitions)        
+        
+        look_for = ["row", "column"]
 
-print ("ROWS: \n%s" %rows)
-print ("PROPOSED ROW: %s" %list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
-print ("COLUMNS: \n%s" %cols)
-print ("PROPOSED COLUMN: %s" %list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
+        # Repeat! -------------------------------------        
+        for repetition in range(num_repetitions):
+            # oracle + diffusion for rows
+            if "row" in look_for:
+                qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+                diffusion(qc, row_searchspace, oracle_row_output)
+            
+            # oracle + diffusion for columns
+            if "column" in look_for:
+                qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+                diffusion(qc, column_searchspace, oracle_column_output)    
+        
+        # Measure
+        if "column" in look_for:
+            qc.measure(column_searchspace, cbit_column_result)
 
+        if "row" in look_for:
+            qc.measure(row_searchspace, cbit_row_result)
+        
+    
+        # --- Send it to external provider ------
+        # -- real ---
+        make_it_real = MAKE_IT_REAL    
+        if make_it_real:
+            if SEND_TO=="IONQ":
+                logger.info ("SENDING TO IONQ")
+                counts = execute_on_IONQ(qc, 4500)
+            else:
+                logger.info ("SENDING TO REAL IBM COMPUTER")
+                counts = execute_on_IBM(qc, 3500)
+
+        # --- simulated locally ---    
+        else:
+            logger.info ("SIMULATING LOCALLY")
+            num_shots=300
+            #from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
+            #provider = BasicAerProvider()    
+            #backend = provider.get_backend()
+            backend = Aer.get_backend('qasm_simulator')
+            tqc = transpile(
+                qc, optimization_level=2
+            )
+            result = backend.run(tqc, shots=num_shots).result()
+            counts = result.get_counts()
+
+        #execute_on_IBM(qc, num_shots=500):
+
+    # Get data     
+    logger.debug (counts)
+    logger.debug ("========================")
+    answers = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
+    logger.info ("Results")
+    rows={}
+    cols={}
+    for each in answers:
+        bits = each[::-1]
+        row,column = bits.split(" ")
+        logger.debug ("b'%s' [Fila: %s, Col: %s] --> %s" %(each, int(row, 2), int(column, 2), answers[each]))
+        if int(row, 2) not in rows:
+            rows[int(row, 2)]=0
+        rows[int(row, 2)]+=answers[each]
+
+        if int(column, 2) not in cols:
+            cols[int(column, 2)]=0
+        cols[int(column, 2)]+=answers[each]    
+
+    logger.debug ("ROWS: %s" %rows)
+    logger.info ("PROPOSED ROW: %s" %list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
+    logger.debug ("COLUMNS: %s" %cols)
+    logger.info ("PROPOSED COLUMN: %s" %list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
+
+
+ 
+##  ------------------------- MAIN  ------------------------------------------------------------------
+if __name__ == "__main__":
+    if TEST_ORACLE:
+        logger.info ("In this run, we will test the oracle (no repetition or diffusion)")
+    else:
+        logger.info ("Send to an external provider: [ %s ]" %MAKE_IT_REAL)
+        main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
+        logger.info ("--- 🏁 FINISHED ---")

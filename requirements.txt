@@ -8,3 +8,4 @@ tabulate
 pylatexenc
 qiskit_ionq
 python-dotenv
+
