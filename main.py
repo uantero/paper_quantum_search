@@ -88,13 +88,14 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["1 0 1 "] ,
-    ["0 1 0 "] ,
-    ["0 1 1 "] 
+    ["1 0 0 "] ,
+    ["0 0 1 "] ,
+    ["0 0 0 "] ,    
 ]
 
+
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  "10" # row ?
+inp_pattern_row=  "01" # row ?
 inp_pattern_col=  "01" # col ?
 
 # Send it to an external provider?
@@ -131,20 +132,24 @@ def init_circuit():
     logger.info ("MAP:")
     logger.debug ("========> MAP ")
     
-    print ("         %s" %"_".join(["" for each in range(GRID_WIDTH+3)]))
+    print ("")
+    print ("          %s" %" ".join([str(each) for each in range(GRID_WIDTH)]))
+    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
+    index=-1
     for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
-        print ("        | %s | " %each_map_line)
-    print ("         %s" %"_".join(["" for each in range(GRID_WIDTH+3)]))
+        index+=1
+        print ("       %s| %s | " %(index, " ".join(each_map_line)))
+    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
     
     logger.debug ("<======== MAP ")
-    logger.debug ("Looking in rows for: | %s |" %inp_pattern_row)
-    logger.debug ("Looking in cols for: | %s |" %inp_pattern_col)
-    
-    # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
-    num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-    logger.debug ("Number of qubits in search space: | %s | (2x %i)" %(num_s_bits * 2, num_s_bits ))
+    logger.info ("Looking in rows for: | %s |" %" ".join(inp_pattern_row))
+    logger.info ("Looking in cols for: | %s |" %" ".join(inp_pattern_col))
     
 
+    # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
+    num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
+    logger.info ("Number of qubits in search space: | %s | (2x %i)" %(num_s_bits * 2, num_s_bits ))
+    
     # Create required registers 
     row_searchspace=QuantumRegister(num_s_bits, "cs")
     column_searchspace=QuantumRegister(num_s_bits, "rs")
@@ -214,8 +219,12 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
     # Used to validate the Oracle        
     # If set, it is used here to validate that the oracle works as expected
     if TEST_ORACLE: # Just to develop/debug the oracle...
+        # In which row or column should we look?
         LOOK_IN_ROW = 0
-        LOOK_IN_COLUMN = 1
+        LOOK_IN_COLUMN = 0
+        look_for = ["row", "column"]
+
+        num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
         format_string = "{:0"+str(num_s_bits)+"b}"
         logger.debug ("Looking in row position: %s [binary %s]" %(LOOK_IN_ROW, format_string.format(LOOK_IN_ROW)))
         logger.debug ("Looking in col position: %s [binary %s]" %(LOOK_IN_COLUMN, format_string.format(LOOK_IN_COLUMN)))
@@ -226,20 +235,20 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         set_inputs(qc, inp_pattern_row, row_substring)
         set_inputs(qc, inp_pattern_col, column_substring)    
 
-        check = "row" # "column"
+        check = "column" # "column"
 
-        if check=="row":
+        if "row" in look_for:
             # ROW
             qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary, BYTE_SIZE, GRID_WIDTH))
             # Measure oracle output for validation
             add_measurement(qc, oracle_row_output, "row")
             #qc.measure(oracle_row_output, cbit_row_result)
         
-        else:    
+        if "column" in look_for:
             # COL
-            #qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary BYTE_SIZE, GRID_WIDTH))
+            qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary, BYTE_SIZE, GRID_WIDTH))
             # Measure oracle output for validation    
-            #add_measurement(qc, oracle_column_output, "vertical")
+            add_measurement(qc, oracle_column_output, "vertical")
             #qc.measure(column_searchspace, list(range(num_s_bits)))
             pass
 
@@ -266,7 +275,9 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         set_inputs(qc, inp_pattern_col, row_substring)
         set_inputs(qc, inp_pattern_row, column_substring)    
             
-        N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
+        #N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
+        
+        N = len(inp_map_string) / BYTE_SIZE
             
         num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )           
                 
@@ -326,13 +337,15 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
     logger.debug (counts)
     logger.debug ("========================")
     answers = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
-    logger.info ("Results")
+    logger.info ("All Results")
     rows={}
     cols={}
     for each in answers:
         bits = each[::-1]
         row,column = bits.split(" ")
         logger.debug ("b'%s' [Fila: %s, Col: %s] --> %s" %(each, int(row, 2), int(column, 2), answers[each]))
+
+        # Store results by row & column
         if int(row, 2) not in rows:
             rows[int(row, 2)]=0
         rows[int(row, 2)]+=answers[each]
@@ -340,18 +353,22 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         if int(column, 2) not in cols:
             cols[int(column, 2)]=0
         cols[int(column, 2)]+=answers[each]    
-
-    logger.debug ("ROWS: %s" %rows)
-    logger.info ("PROPOSED ROW: %s" %list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
+    
+    logger.info ("By Row and Column:")
+    logger.debug ("ROWS: %s" %rows)    
     logger.debug ("COLUMNS: %s" %cols)
+
+    logger.info ("PROPOSED ROW: %s" %list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
     logger.info ("PROPOSED COLUMN: %s" %list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0])
 
 
  
 ##  ------------------------- MAIN  ------------------------------------------------------------------
 if __name__ == "__main__":
+    logger.info(" -------------------------- STARTING ----------------------------")
     if TEST_ORACLE:
         logger.info ("In this run, we will test the oracle (no repetition or diffusion)")
+        main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
     else:
         logger.info ("Send to an external provider: [ %s ]" %MAKE_IT_REAL)
         main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
