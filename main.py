@@ -46,6 +46,7 @@ import matplotlib.pyplot as plt
 import sys, os
 import numpy as np
 import math
+import re
 from textwrap import wrap
 
 # You should have a correct .env file in the same directory as this file
@@ -91,31 +92,35 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["0 0 0 "] ,
-    ["0 1 0 "] ,
-    ["0 0 0 "] ,
+    ["0 0 0 0  "] ,
+    ["0 0 1 0  "] ,
+    ["0 0 1 1  "] ,
+    ["0 0 0 0  "] ,
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  "01" # row ?
-inp_pattern_col=  "01" # col ?
+inp_pattern_row=  "1" # row ?
+inp_pattern_col=  "1" # col ?
+
+# Byte size, measured in bits... each of them is considered a "unit"
+BYTE_SIZE = 1 # 2 bits
 
 # Send it to an external provider?
 MAKE_IT_REAL = False
 
 # Which external provider?
+# OPTIONS: IONQ, IBM, QUANTUMINSPIRE
+
 #SEND_TO = "IONQ"
-#SEND_TO = "IBM"
-SEND_TO = "QUANTUMINSPIRE"
+SEND_TO = "IBM"
+#SEND_TO = "QUANTUMINSPIRE"
 
 # ----------------------------
 # Are we validating the oracle? Used to validate the Oracle
 TEST_ORACLE = False
 
-# Byte size, measured in bits... each of them is considered a "unit"
 # Bytes are only written "in horizontal"
-BYTE_SIZE = 1 # 2 bits
 GRID_WIDTH = int(len(inp_map_string[0][0].replace(" ","")) / BYTE_SIZE)
 GRID_HEIGHT = int(len(inp_map_string) )
 
@@ -129,18 +134,38 @@ inp_map_string="".join(["".join(item) for column in inp_map_string for item in c
 ## ---------------------------------------------
 ## Show map
 def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None):
+    from textwrap import wrap
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    BLANK = "".join([" " for each in range(BYTE_SIZE)])
+    LINE = "-"
+
+    # Upper header
+    # list of items
+    column_items=""
+    for index, each in enumerate(range(GRID_WIDTH)):
+        if index==selected_column:
+            column_items = column_items + colored(str(each), "red", attrs=['bold'])+BLANK
+        else:
+            column_items = column_items + str(each)+BLANK
+    
+    # Remove color codes for counting the width
+    table_width =  len(ansi_escape.sub('', column_items))
+    # Draw list and horizontal lines
     print ("")
-    print ("          %s" %" ".join([str(each) for each in range(GRID_WIDTH)]))
-    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
+    print ("          %s" %column_items )
+    print ("         %s" %"".join([LINE for each in range(table_width+2)]))
     index=-1
     for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
+        line_items = wrap(each_map_line, BYTE_SIZE)
+
         index+=1
         if index==selected_row:
-            print (  colored("       %s| %s  | " %(index, " ".join(each_map_line)) , 'red', attrs=['bold'] ) )
+            print (  colored("       %s| %s  | " %(index, " ".join(line_items)) , 'red', attrs=['bold'] ) )
         else:
             line=""
             col_index=-1
-            for each_column_item in each_map_line:
+            for each_column_item in line_items:                
                 col_index+=1
                 if col_index==selected_column:
                     line = line + colored(each_column_item, "red", attrs=['bold']) + " "
@@ -148,7 +173,7 @@ def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_
                     line = line + each_column_item + " "
 
             print ("       %s| %s | " %(index, line))
-    print ("         %s" %"--".join(["" for each in range(GRID_WIDTH+1)]))
+    print ("         %s" %"".join([LINE for each in range(table_width+2)]))    
 
 ## ---------------------------------------------
 ## Initialize the circuit and set some registers
@@ -160,8 +185,8 @@ def init_circuit():
     show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE)
 
     logger.debug ("<======== MAP ")
-    logger.info ("Looking in rows for: | %s |" %" ".join(inp_pattern_row))
-    logger.info ("Looking in cols for: | %s |" %" ".join(inp_pattern_col))
+    logger.info ("Looking in rows for: [ %s ]" %" ".join(inp_pattern_row))
+    logger.info ("Looking in cols for: [ %s ]" %" ".join(inp_pattern_col))
     
     # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
     num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
@@ -175,8 +200,7 @@ def init_circuit():
     column_substring=QuantumRegister(len(inp_pattern_col), "column_substring")
     temporary=QuantumRegister(  len(row_substring) , "temporary")
     
-    oracle_row_output=QuantumRegister(1, "row_output")
-    oracle_column_output=QuantumRegister(1, "column_output")
+    oracle_output=QuantumRegister(1, "row_output")
     ancillary=QuantumRegister(1, "ancillary") # Used to mark that the substring was already found
 
     cbit_row_result = ClassicalRegister(len(row_searchspace), "cbit_row_result")
@@ -184,7 +208,9 @@ def init_circuit():
 
 
     # Creating circuit
-    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_row_output, oracle_column_output, ancillary, cbit_row_result, cbit_column_result)
+    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_output, ancillary, cbit_row_result, cbit_column_result)
+
+    logger.info ("Number of qubits in circuit: %s" %qc.num_qubits)
 
     return {
         "qc": qc,
@@ -198,8 +224,7 @@ def init_circuit():
             "column_substring": column_substring
         },
         "outputs": {
-            "oracle_row_output": oracle_row_output,
-            "oracle_column_output": oracle_column_output
+            "oracle_output": oracle_output
         },
         "temporary": {
             "temporary": temporary,
@@ -224,8 +249,7 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
     map_string = results["inputs"]["map_string"]
     row_substring = results["inputs"]["row_substring"]
     column_substring = results["inputs"]["column_substring"]
-    oracle_row_output = results["outputs"]["oracle_row_output"]
-    oracle_column_output = results["outputs"]["oracle_column_output"]
+    oracle_output = results["outputs"]["oracle_output"]
     temporary = results["temporary"]["temporary"]
     ancillary = results["temporary"]["ancillary"]
     cbit_row_result = results["result"]["cbit_row_result"]
@@ -237,9 +261,10 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
     # If set, it is used here to validate that the oracle works as expected
     if TEST_ORACLE: # Just to develop/debug the oracle...
         # In which row or column should we look?
-        LOOK_IN_ROW = 0
-        LOOK_IN_COLUMN = 0
-        look_for = ["row", "column"]
+        LOOK_IN_ROW = 1
+        LOOK_IN_COLUMN = 1
+        #look_for = ["row", "column"]
+        look_for = ["row"]
 
         num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
         format_string = "{:0"+str(num_s_bits)+"b}"
@@ -256,17 +281,15 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
 
         if "row" in look_for:
             # ROW
-            qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+            qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
             # Measure oracle output for validation
-            add_measurement(qc, oracle_row_output, "row")
-            #qc.measure(oracle_row_output, cbit_row_result)
+            add_measurement(qc, oracle_output, "row")
         
         if "column" in look_for:
             # COL
-            qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+            qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
             # Measure oracle output for validation    
-            add_measurement(qc, oracle_column_output, "vertical")
-            #qc.measure(column_searchspace, list(range(num_s_bits)))
+            add_measurement(qc, oracle_output, "vertical")
             pass
 
         num_shots = 100
@@ -294,9 +317,15 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
             
         #N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
         
-        N = len(inp_map_string) / BYTE_SIZE
+        #N = len(inp_map_string) * 2 * BYTE_SIZE
+
+        # All posibilities        
+        N = (
+                ( GRID_HEIGHT * GRID_WIDTH/(len(inp_pattern_row)/ BYTE_SIZE) ) +  
+                ( GRID_WIDTH * GRID_HEIGHT/(len(inp_pattern_col)/ BYTE_SIZE) ) 
+            ) # Horizontal + vertical
             
-        num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )           
+        num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )  
                 
     
         logger.info ("Estimated Grover repetitions: %s" %num_repetitions)        
@@ -307,13 +336,14 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         for repetition in range(num_repetitions):
             # oracle + diffusion for rows
             if "row" in look_for:
-                qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_row_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-                diffusion(qc, row_searchspace, oracle_row_output)
+                qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+                diffusion(qc, row_searchspace, oracle_output)
             
+        for repetition in range(num_repetitions):            
             # oracle + diffusion for columns
             if "column" in look_for:
-                qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_column_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-                diffusion(qc, column_searchspace, oracle_column_output)    
+                qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
+                diffusion(qc, column_searchspace, oracle_output)    
         
         # Measure
         if "column" in look_for:
@@ -335,7 +365,11 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
                 counts = execute_on_QuantumInspire(qc, 500)                
             else:
                 logger.info ("SENDING TO REAL IBM COMPUTER")
-                counts = execute_on_IBM(qc, 3500)
+
+                def show_results(selected_row, selected_column):
+                    show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+
+                counts = execute_on_IBM(qc, 3000, show_results)
 
         # --- simulated locally ---    
         else:
@@ -375,8 +409,8 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         cols[int(column, 2)]+=answers[each]    
     
     logger.info ("By Row and Column:")
-    logger.debug ("ROWS: %s" %rows)    
-    logger.debug ("COLUMNS: %s" %cols)
+    logger.debug ("ROWS: %s" %{k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)})    
+    logger.debug ("COLUMNS: %s" %{k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)})
 
     proposed_row = list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
     proposed_column = list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0]

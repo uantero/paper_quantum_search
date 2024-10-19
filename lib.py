@@ -62,7 +62,7 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
 
  
 
-def execute_on_IBM(qc, num_shots=500):
+def execute_on_IBM(qc, num_shots=500, show_results=None):
     from qiskit_ibm_runtime import QiskitRuntimeService
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
  
@@ -86,18 +86,23 @@ def execute_on_IBM(qc, num_shots=500):
     logger.debug ("COLUMN:")
     logger.debug  (column)
     answers = {k: v for k, v in sorted(column.items(), key=lambda item: item[1], reverse=True)}
+    selected_column = sorted(column.items(), key=lambda item: item[1], reverse=True)[0]
     logger.info ("COLUMN Results")
     for each in answers:
         bits = each[::-1]
-        print ("b'%s' [Columna: %s] --> %s" %(each, int(bits, 2), answers[each]))    
+        logger.debug ("b'%s' [Columna: %s] --> %s" %(each, int(bits, 2), answers[each]))    
 
     logger.debug ("ROW:")
     logger.debug  (row)
     answers = {k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}
+    selected_row = sorted(row.items(), key=lambda item: item[1], reverse=True)[0]
     logger.info ("ROW Results")
     for each in answers:
         bits = each[::-1]
-        print ("b'%s' [Fila: %s] --> %s" %(each, int(bits, 2), answers[each]))    
+        logger.debug ("b'%s' [Fila: %s] --> %s" %(each, int(bits, 2), answers[each]))    
+
+    if show_results:
+        show_results(selected_row, selected_column)    
 
     logger.info ("-- FINISHED --")
     sys.exit(0)
