@@ -93,9 +93,9 @@ inp_map_string = [
 # THE MAP
 inp_map_string = [
     ["0 0 0 0  "] ,
-    ["0 0 1 0  "] ,
-    ["0 0 1 1  "] ,
     ["0 0 0 0  "] ,
+    ["0 0 1 1  "] ,
+    ["0 0 1 0  "] ,
 ]
 
 
@@ -315,21 +315,22 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
         set_inputs(qc, inp_pattern_col, row_substring)
         set_inputs(qc, inp_pattern_row, column_substring)    
             
-        #N = 2 * (len(inp_map_string) )/ ((len(inp_pattern_row) + len(inp_pattern_col))/BYTE_SIZE ) # Horiz & vertical
-        
+        #N = 2 * (2*( GRID_HEIGHT *((GRID_WIDTH / len(inp_map_string) )/ (len(inp_pattern_row)/BYTE_SIZE) ))) # Horiz & vertical
+
+        N =   2 * ( GRID_WIDTH / (len(inp_pattern_row)*BYTE_SIZE) ) 
         #N = len(inp_map_string) * 2 * BYTE_SIZE
 
-        # All posibilities        
-        N = (
-                ( GRID_HEIGHT * GRID_WIDTH/(len(inp_pattern_row)/ BYTE_SIZE) ) +  
-                ( GRID_WIDTH * GRID_HEIGHT/(len(inp_pattern_col)/ BYTE_SIZE) ) 
-            ) # Horizontal + vertical
+        # N: All posibilities        
+        #N = (
+        #        2*( GRID_HEIGHT * GRID_WIDTH/(len(inp_pattern_row)/ BYTE_SIZE) ) 
+        #    ) # Horizontal + vertical
             
-        num_repetitions = math.floor( (math.pi/4)*(math.sqrt(N)) )  
+        #num_repetitions = int( (math.pi/4)*(math.sqrt(N)) )  
+        num_repetitions = int( (math.sqrt(N)) )  
                 
     
-        logger.info ("Estimated Grover repetitions: %s" %num_repetitions)        
-        
+        logger.info ("Estimated Grover repetitions: %s" %num_repetitions)  
+
         look_for = ["row", "column"]
 
         # Repeat! -------------------------------------        
