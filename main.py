@@ -317,20 +317,18 @@ def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH
             
         #N = 2 * (2*( GRID_HEIGHT *((GRID_WIDTH / len(inp_map_string) )/ (len(inp_pattern_row)/BYTE_SIZE) ))) # Horiz & vertical
 
-        N =   2 * ( GRID_WIDTH / (len(inp_pattern_row)*BYTE_SIZE) ) 
-        #N = len(inp_map_string) * 2 * BYTE_SIZE
+        # El número de repeticiones debería ser aprox. raiz de N/M
+        # Siendo N el número de opciones, y M las soluciones buenas...
+        
+        N = 1* (GRID_WIDTH - len(inp_pattern_row)*BYTE_SIZE + 1)
+        M = 1
+        #N = len(inp_map_string) * 2 * BYTE_SIZE        
 
-        # N: All posibilities        
-        #N = (
-        #        2*( GRID_HEIGHT * GRID_WIDTH/(len(inp_pattern_row)/ BYTE_SIZE) ) 
-        #    ) # Horizontal + vertical
-            
-        #num_repetitions = int( (math.pi/4)*(math.sqrt(N)) )  
-        num_repetitions = int( (math.sqrt(N)) )  
+        num_repetitions = max(1,math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
                 
     
         logger.info ("Estimated Grover repetitions: %s" %num_repetitions)  
-
+        
         look_for = ["row", "column"]
 
         # Repeat! -------------------------------------        

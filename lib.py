@@ -83,6 +83,8 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
  
     row = results[0].data.cbit_row_result.get_counts()
     column = results[0].data.cbit_column_result.get_counts()
+    selected_row=None
+    selected_column=None
     logger.debug ("COLUMN:")
     logger.debug  (column)
     answers = {k: v for k, v in sorted(column.items(), key=lambda item: item[1], reverse=True)}
@@ -90,6 +92,8 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
     logger.info ("COLUMN Results")
     for each in answers:
         bits = each[::-1]
+        if not selected_column:
+            selected_column = int(bits, 2)        
         logger.debug ("b'%s' [Columna: %s] --> %s" %(each, int(bits, 2), answers[each]))    
 
     logger.debug ("ROW:")
@@ -99,6 +103,8 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
     logger.info ("ROW Results")
     for each in answers:
         bits = each[::-1]
+        if not selected_row:
+            selected_row = int(bits, 2)        
         logger.debug ("b'%s' [Fila: %s] --> %s" %(each, int(bits, 2), answers[each]))    
 
     if show_results:
