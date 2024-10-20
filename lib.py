@@ -139,6 +139,51 @@ def execute_on_IONQ(qc, num_shots=500):
  
     return result    
 
+# Ancilla is used to avoid multiple switches of "output"
+def checkEqual(qc, reg1, reg2, reg1_literal_value, temporary, ancilla, output, additional_qubits):
+
+    # Flip ancilla
+    qc.x(ancilla)
+
+    # Flip reg1
+    flipped_reg_bits = []
+    used_bits=[]
+    for k, pos in enumerate(reg1_literal_value):
+        if pos == "0":            
+            qc.x(reg1[k])   
+            qc.x(reg2[k])            
+            flipped_reg_bits.append(reg1[k])
+            flipped_reg_bits.append(reg2[k])
+
+    for bit_index in range(len(reg1)):
+        XNOR(qc,reg1[bit_index], reg2[bit_index], temporary[bit_index])
+        # Keep track of used "temporary" bits
+        used_bits.append(temporary[bit_index])
+
+
+    # Generate output            
+    if additional_qubits:
+        qc.mcx( list(ancilla) + list(used_bits) + list(additional_qubits) , output[0])
+    else:
+        qc.mcx( list(ancilla) + list(used_bits) , output[0])
+    
+    qc.cx( output[0] , ancilla)             
+
+    # Uncompute
+    # Flip ancilla
+    qc.x(ancilla)
+
+    for bit_index in range(len(reg1)):
+        XNOR(qc,reg1[bit_index], reg2[bit_index], temporary[bit_index])
+
+    if len(flipped_reg_bits):
+        qc.x(flipped_reg_bits)
+
+
+    return qc
+
+
+
 def execute_on_QuantumInspire(qc, num_shots=500):
     from quantuminspire.qiskit import QI
 
@@ -159,3 +204,13 @@ def execute_on_QuantumInspire(qc, num_shots=500):
     result = qi_result.get_counts(circuit)
  
     return result        
+
+
+def simulate(qc, num_shots=300):
+    from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
+    provider = BasicAerProvider()        
+    backend = Aer.get_backend('qasm_simulator')    
+    result = backend.run(transpile(qc, backend), shots=num_shots).result()
+    counts = result.get_counts()
+
+    return counts

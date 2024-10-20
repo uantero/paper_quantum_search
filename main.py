@@ -3,41 +3,6 @@
 ####      Find x,y in a grid
 ####
  
-"""
-  RESULTADOS IBM (18-oct-2024):
-  -----------------
-      MAP:
-        ========
-        1010
-        0000
-        0110 
-        0000
-
-        Looking in rows for: 11 
-        Looking in cols for: 10
-        Number of qubits in search space: 4 (2x 2)
-        =================================
-        Estimated Grover repetitions: 3
-        SENDING TO REAL IBM COMPUTER
-        Sending real JOB to IBM
-        job id: cw902hj2802g0081k5sg
-        PrimitiveResult([SamplerPubResult(data=DataBin(cbit_row_result=BitArray(<shape=(), num_shots=5500, num_bits=2>), cbit_column_result=BitArray(<shape=(), num_shots=5500, num_bits=2>)), metadata={'circuit_metadata': {}})], metadata={'execution': {'execution_spans': ExecutionSpans([SliceSpan(<start='2024-10-18 06:33:50', stop='2024-10-18 06:34:26', size=5500>)])}, 'version': 2})
-        COLUMN:
-        {'11': 1363, '10': 1355, '00': 1372, '01': 1410}
-        COLUMN Results
-        b'01' [Columna: 2] --> 1410
-        b'00' [Columna: 0] --> 1372
-        b'11' [Columna: 3] --> 1363
-        b'10' [Columna: 1] --> 1355
-        ROW:
-        {'11': 1834, '01': 1874, '00': 906, '10': 886}
-        ROW Results
-        b'01' [Fila: 2] --> 1874
-        b'11' [Fila: 3] --> 1834
-        b'00' [Fila: 0] --> 906
-        b'10' [Fila: 1] --> 886
-        . . . . . . . . . . . . 
-"""
  
 #initialization
 from dotenv import load_dotenv
@@ -68,7 +33,7 @@ from termcolor import colored
 
 # our Grover libs
 from oracles import create_column_oracle, create_row_oracle
-from lib import initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
+from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
 from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
 
 
@@ -77,7 +42,9 @@ from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
 
 """
 inp_map_string = [
-    ["0 0 0 0 0 0 0 0"] ,
+    ["
+    col={}
+    for each in 0 0 0 0 0 0 0 0"] ,
     ["0 0 X 0 0 0 0 0"] ,
     ["0 0 0 0 0 0 0 0"] ,
     ["0 0 0 0 0 0 0 0"] ,
@@ -92,19 +59,25 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["0 0 0 0  "] ,
-    ["0 0 0 0  "] ,
-    ["0 0 1 1  "] ,
-    ["0 0 1 0  "] ,
+    ["00 10 00"] ,
+    ["00 11 00"] ,
 ]
+
+for each in inp_map_string:
+    print (each)
+print (" ")
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  "1" # row ?
-inp_pattern_col=  "1" # col ?
+inp_pattern_row=  ["10"] # row ?
+inp_pattern_col=  ["10"] # col ?
+
+inp_map_string_joined = (  ("".join(["".join(each) for each in inp_map_string])).replace(" ","") )
+inp_pattern_row_joined = "".join(inp_pattern_row)
+inp_pattern_col_joined = "".join(inp_pattern_col)
 
 # Byte size, measured in bits... each of them is considered a "unit"
-BYTE_SIZE = 1 # 2 bits
+BYTE_SIZE = len(inp_pattern_row[0]) # 1 / 2 / ... bits ?
 
 # Send it to an external provider?
 MAKE_IT_REAL = False
@@ -127,309 +100,226 @@ GRID_HEIGHT = int(len(inp_map_string) )
 # Join inp_map_string into a single string
 inp_map_string="".join(["".join(item) for column in inp_map_string for item in column]).replace(" ","").replace("X","1")
 
-##  ----------- /GLOBALS --------------------
-#############################################
+
+# Ok! Let's look in columns...
+# Consider bytes...
+def split_in_columns(what, width):
+    columns={}
+    for each_column_index in range(width):
+        columns[each_column_index]=[]
+    column_index=-1
+    for each in [what[i:i+BYTE_SIZE] for i in range(0, len(what), BYTE_SIZE)]:
+        column_index=column_index+1
+        columns[column_index].append(each)        
+        if column_index+1>=width:
+            column_index=-1
+    return list(columns.values())
+
+def split_in_rows(what, width):
+    rows=[]
+    each_row=[]
+    for each in [what[i:i+BYTE_SIZE] for i in range(0, len(what), BYTE_SIZE)]:
+        each_row.append(each)
+        if len(each_row)>=width:
+            rows.append(each_row)
+            each_row=[]
+    return rows   
 
 
-## ---------------------------------------------
-## Show map
-def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None):
+## This create a list of positions
+##  inp_map_string: can be anything (string or quantum register) that could be used as a map
+##  inp_pattern_row: string or quantum register that defines the substring to be found in the row
+##  row_elements: STRING of the substring to be found in the row (as it is used to check .cx etc...)
+##  ....
+def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern_col, col_elements, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT):
     from textwrap import wrap
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-
-    BLANK = "".join([" " for each in range(BYTE_SIZE)])
-    LINE = "-"
-
-    # Upper header
-    # list of items
-    column_items=""
-    for index, each in enumerate(range(GRID_WIDTH)):
-        if index==selected_column:
-            column_items = column_items + colored(str(each), "red", attrs=['bold'])+BLANK
-        else:
-            column_items = column_items + str(each)+BLANK
+    import numpy as np
     
-    # Remove color codes for counting the width
-    table_width =  len(ansi_escape.sub('', column_items))
-    # Draw list and horizontal lines
-    print ("")
-    print ("          %s" %column_items )
-    print ("         %s" %"".join([LINE for each in range(table_width+2)]))
-    index=-1
-    for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
-        line_items = wrap(each_map_line, BYTE_SIZE)
+    positions=[]
+    
+    rows = split_in_rows(inp_map_string, GRID_WIDTH)
+    columns = split_in_columns(inp_map_string, GRID_WIDTH)
 
-        index+=1
-        if index==selected_row:
-            print (  colored("       %s| %s  | " %(index, " ".join(line_items)) , 'red', attrs=['bold'] ) )
-        else:
-            line=""
-            col_index=-1
-            for each_column_item in line_items:                
-                col_index+=1
-                if col_index==selected_column:
-                    line = line + colored(each_column_item, "red", attrs=['bold']) + " "
+    inp_pattern_row = [inp_pattern_row[i:i + BYTE_SIZE] for i in range(0, len(inp_pattern_row), BYTE_SIZE)] 
+    inp_pattern_col = [inp_pattern_col[i:i + BYTE_SIZE] for i in range(0, len(inp_pattern_col), BYTE_SIZE)] 
+    print (inp_pattern_row)
+
+
+    #print ("ROWS: %s" %rows)
+    #print ("COLUMNS: %s" %columns)
+
+    class Element:
+        def __init__(self, row, col, element, type, compare_to, compare_to_str):
+            self.row=row
+            self.col=col
+            self.element=element
+            self.type=type
+            self.compare_to=compare_to
+            self.compare_to_str=compare_to_str
+        def __repr__(self):
+            return " (%s|%s[%s|%s]<%s>) " %(self.row, self.col, self.type, self.element, self.compare_to)
+
+    for each_row_index in range(len(rows[0])-len(col_elements)+1):
+        if each_row_index>=len(rows):
+            continue
+        this_row=rows[each_row_index]        
+        for each_column_index in range(len(this_row)-len(row_elements)+1):
+            temp_positions=[]
+            for each_row_bit in range(len(row_elements)):
+                #print("Row: %s, Col: %s" %(each_row_index, each_column_index+each_row_bit))
+                element=Element(each_row_index, each_column_index+each_row_bit, 
+                        rows[each_row_index][each_column_index+each_row_bit],
+                        "row",
+                        inp_pattern_row[each_row_bit],
+                        row_elements[each_row_bit]
+                        )
+                temp_positions.append(element)
+
+            if len(inp_pattern_col)>1:
+                for each_col_bit in range(len(col_elements)):
+                    #print("*Row: %s, Col: %s" %(each_row_index+each_col_bit, each_column_index))
+                    if each_row_index+each_col_bit>=len(rows):
+                        continue
+                    element=Element(each_row_index+each_col_bit, each_column_index, 
+                                rows[each_row_index+each_col_bit][each_column_index],
+                                "col",
+                                inp_pattern_col[each_col_bit],
+                                col_elements[each_col_bit]
+                            )
+                    temp_positions.append(element)
+            positions.append(temp_positions)
+                #print (this_row[each_column_index])
+        
+    
+    return positions
+
+
+
+num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
+logger.info("Num qubits in search space: %squbits (2x %squbits)" %(2*num_s_bits, num_s_bits))
+
+# Create required registers 
+print (inp_map_string_joined)
+search_space=QuantumRegister(num_s_bits + num_s_bits, "s")
+map=QuantumRegister(len(inp_map_string_joined), "map")
+search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
+search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
+temporary=QuantumRegister(len(search_row) + len(search_col), "temporary")
+ancilla=QuantumRegister(1, "ancilla")
+output=QuantumRegister(1, "output")
+out_search=ClassicalRegister(len(search_space),"out_search")
+output_c=ClassicalRegister(len(output),"output_oracle")
+
+qc = QuantumCircuit(search_space, map, search_row, search_col, temporary, ancilla, output)
+
+print ("JOINED MAP: %s" %inp_map_string_joined)
+print ("JOINED inp_pattern_row_joined: %s" %inp_pattern_row_joined)
+
+#SEARCH SPACE:
+desired_row=2
+desired_col=2
+format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
+formated_searchspace = "%s%s" %(format_string.format(desired_row), format_string.format(desired_col))
+print ("desired search_space: %s" %formated_searchspace)
+print ("MAP: %s" %inp_map_string_joined)
+
+set_inputs(qc, inp_map_string_joined, map )
+initialize_H(qc, search_space)
+#set_inputs(qc, formated_searchspace, search_space)
+set_inputs(qc, inp_pattern_row_joined, search_row)
+set_inputs(qc, inp_pattern_col_joined, search_col)
+
+#checkEqual(qc, [map[0]], [search_row[0]], inp_pattern_row_joined, temporary, ancilla, output)
+
+print (len(inp_pattern_row))
+positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
+N = len(positions)
+
+logger.info("Number of qubits: %s" %(qc.num_qubits) )
+
+logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
+
+#checkEqual(qc, [map[3]], [search_row[0]], "1", temporary, ancilla, output, search_space)
+
+def oracle(qc, search_space, positions, temporary, ancilla, output):
+    format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
+
+    for each_position in positions:
+        for each_check in each_position:
+            row = each_check.row
+            col = each_check.col
+            map_element = each_check.element
+            compare_to_register = each_check.compare_to
+            compare_to_register_str = each_check.compare_to_str
+
+            row_in_binary = format_string.format(row)
+            col_in_binary = format_string.format(col)
+            binary_searchspace="%s%s" %(row_in_binary, col_in_binary)
+            
+            # Flip search_space
+            flipped_s = []
+            for k, pos in enumerate(binary_searchspace):
+                if pos == "0":
+                    flipped_s.append(search_space[k])
+                    qc.x(search_space[k])            
                 else:
-                    line = line + each_column_item + " "
+                    pass
 
-            print ("       %s| %s | " %(index, line))
-    print ("         %s" %"".join([LINE for each in range(table_width+2)]))    
-
-## ---------------------------------------------
-## Initialize the circuit and set some registers
-def init_circuit():
-    logger.info ("STARTING FOR:")
-    logger.info ("MAP:")
-    logger.debug ("========> MAP ")
-
-    show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE)
-
-    logger.debug ("<======== MAP ")
-    logger.info ("Looking in rows for: [ %s ]" %" ".join(inp_pattern_row))
-    logger.info ("Looking in cols for: [ %s ]" %" ".join(inp_pattern_col))
-    
-    # Output is (x,y)... we assume that GRID_WIDTH = GRID_HEIGHT
-    num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-    logger.info ("Number of qubits in search space: | %s | (2x %i)" %(num_s_bits * 2, num_s_bits ))
-    
-    # Create required registers 
-    row_searchspace=QuantumRegister(num_s_bits, "cs")
-    column_searchspace=QuantumRegister(num_s_bits, "rs")
-    map_string=QuantumRegister(len(inp_map_string), "map_string")
-    row_substring=QuantumRegister(len(inp_pattern_row), "row_substring")
-    column_substring=QuantumRegister(len(inp_pattern_col), "column_substring")
-    temporary=QuantumRegister(  len(row_substring) , "temporary")
-    
-    oracle_output=QuantumRegister(1, "row_output")
-    ancillary=QuantumRegister(1, "ancillary") # Used to mark that the substring was already found
-
-    cbit_row_result = ClassicalRegister(len(row_searchspace), "cbit_row_result")
-    cbit_column_result = ClassicalRegister(len(column_searchspace), "cbit_column_result")
-
-
-    # Creating circuit
-    qc = QuantumCircuit(row_searchspace, column_searchspace, map_string, row_substring, column_substring, temporary, oracle_output, ancillary, cbit_row_result, cbit_column_result)
-
-    logger.info ("Number of qubits in circuit: %s" %qc.num_qubits)
-
-    return {
-        "qc": qc,
-        "searchspace":{
-            "row_searchspace": row_searchspace,
-            "column_searchspace": column_searchspace
-        },
-        "inputs": {
-            "map_string": map_string,
-            "row_substring": row_substring,
-            "column_substring": column_substring
-        },
-        "outputs": {
-            "oracle_output": oracle_output
-        },
-        "temporary": {
-            "temporary": temporary,
-            "ancillary": ancillary
-        },
-        "result": {
-            "cbit_row_result": cbit_row_result,
-            "cbit_column_result": cbit_column_result
-        }        
-    }
-
-
-## ---------------------------------------------
-## Main function
-def main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT):    
-
-    results = init_circuit()
-
-    qc = results["qc"]
-    row_searchspace = results["searchspace"]["row_searchspace"]
-    column_searchspace = results["searchspace"]["column_searchspace"]
-    map_string = results["inputs"]["map_string"]
-    row_substring = results["inputs"]["row_substring"]
-    column_substring = results["inputs"]["column_substring"]
-    oracle_output = results["outputs"]["oracle_output"]
-    temporary = results["temporary"]["temporary"]
-    ancillary = results["temporary"]["ancillary"]
-    cbit_row_result = results["result"]["cbit_row_result"]
-    cbit_column_result = results["result"]["cbit_column_result"]
-
-
-    # ------------------------
-    # Used to validate the Oracle        
-    # If set, it is used here to validate that the oracle works as expected
-    if TEST_ORACLE: # Just to develop/debug the oracle...
-        # In which row or column should we look?
-        LOOK_IN_ROW = 1
-        LOOK_IN_COLUMN = 1
-        #look_for = ["row", "column"]
-        look_for = ["row"]
-
-        num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-        format_string = "{:0"+str(num_s_bits)+"b}"
-        logger.debug ("Looking in row position: %s [binary %s]" %(LOOK_IN_ROW, format_string.format(LOOK_IN_ROW)))
-        logger.debug ("Looking in col position: %s [binary %s]" %(LOOK_IN_COLUMN, format_string.format(LOOK_IN_COLUMN)))
-
-        set_inputs(qc, format_string.format(LOOK_IN_ROW), row_searchspace)
-        set_inputs(qc, format_string.format(LOOK_IN_COLUMN), column_searchspace)    
-        set_inputs(qc, inp_map_string, map_string)
-        set_inputs(qc, inp_pattern_row, row_substring)
-        set_inputs(qc, inp_pattern_col, column_substring)    
-
-        check = "column" # "column"
-
-        if "row" in look_for:
-            # ROW
-            qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-            # Measure oracle output for validation
-            add_measurement(qc, oracle_output, "row")
-        
-        if "column" in look_for:
-            # COL
-            qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-            # Measure oracle output for validation    
-            add_measurement(qc, oracle_output, "vertical")
-            pass
-
-        num_shots = 100
-        from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
-        provider = BasicAerProvider()    
-        backend = provider.get_backend()
-        result = backend.run(transpile(qc, backend), shots=num_shots).result()
-        counts = result.get_counts()
-
-        logger.info (counts)
-
-        # Exit
-        sys.exit(0)
-
-    
-    # -----------------------------------------------
-    # "REAL" grover search 
-    # We use the grover oracle + diffussion
-    else:
-        initialize_H(qc, row_searchspace)
-        initialize_H(qc, column_searchspace)
-        set_inputs(qc, inp_map_string, map_string)
-        set_inputs(qc, inp_pattern_col, row_substring)
-        set_inputs(qc, inp_pattern_row, column_substring)    
+            checkEqual(qc, map_element, compare_to_register, compare_to_register_str, temporary, ancilla, output, search_space)
             
-        #N = 2 * (2*( GRID_HEIGHT *((GRID_WIDTH / len(inp_map_string) )/ (len(inp_pattern_row)/BYTE_SIZE) ))) # Horiz & vertical
+            if len(flipped_s):
+                qc.x(flipped_s)
 
-        # El número de repeticiones debería ser aprox. raiz de N/M
-        # Siendo N el número de opciones, y M las soluciones buenas...
-        
-        N = 1* (GRID_WIDTH - len(inp_pattern_row)*BYTE_SIZE + 1)
-        M = 1
-        #N = len(inp_map_string) * 2 * BYTE_SIZE        
 
-        num_repetitions = max(1,math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
-                
-    
-        logger.info ("Estimated Grover repetitions: %s" %num_repetitions)  
-        
-        look_for = ["row", "column"]
+logger.info("Looking at: (%s)" %search_space)
+logger.info("Looking for (row): (%s)" %inp_pattern_row)
+logger.info("Looking for (col): (%s)" %inp_pattern_col)
 
-        # Repeat! -------------------------------------        
-        for repetition in range(num_repetitions):
-            # oracle + diffusion for rows
-            if "row" in look_for:
-                qc.compose(create_row_oracle(qc, row_searchspace, map_string, row_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-                diffusion(qc, row_searchspace, oracle_output)
-            
-        for repetition in range(num_repetitions):            
-            # oracle + diffusion for columns
-            if "column" in look_for:
-                qc.compose(create_column_oracle(qc, column_searchspace, map_string, column_substring, temporary, oracle_output, ancillary, BYTE_SIZE, GRID_WIDTH))
-                diffusion(qc, column_searchspace, oracle_output)    
-        
-        # Measure
-        if "column" in look_for:
-            qc.measure(column_searchspace, cbit_column_result)
+TEST_ORACLE=False
+if not TEST_ORACLE:
+    N=len(positions)
+    M=2
 
-        if "row" in look_for:
-            qc.measure(row_searchspace, cbit_row_result)
-        
-    
-        # --- Send it to external provider ------
-        # -- real ---
-        make_it_real = MAKE_IT_REAL    
-        if make_it_real:
-            if SEND_TO=="IONQ":
-                logger.info ("SENDING TO IONQ")
-                counts = execute_on_IONQ(qc, 500)
-            elif SEND_TO=="QUANTUMINSPIRE":
-                logger.info ("SENDING TO QUANTUM INSPIRE")
-                counts = execute_on_QuantumInspire(qc, 500)                
-            else:
-                logger.info ("SENDING TO REAL IBM COMPUTER")
+    num_repetitions = max(1,math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
+    logger.info("Num. repetitions: %s" %num_repetitions)
 
-                def show_results(selected_row, selected_column):
-                    show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+    #for each in range(num_repetitions):
+    for each in range(num_repetitions):
+        oracle(qc, search_space, positions, temporary, ancilla, output)
+        diffusion(qc, search_space, output)    
 
-                counts = execute_on_IBM(qc, 3000, show_results)
 
-        # --- simulated locally ---    
-        else:
-            logger.info ("SIMULATING LOCALLY")
-            num_shots=300
-            #from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
-            #provider = BasicAerProvider()    
-            #backend = provider.get_backend()
-            backend = Aer.get_backend('qasm_simulator')
-            tqc = transpile(
-                qc, optimization_level=2
-            )
-            result = backend.run(tqc, shots=num_shots).result()
-            counts = result.get_counts()
+    add_measurement(qc, search_space, "res1")
+    counts=simulate(qc, num_shots=600)
+    row={}
+    col={}
+    for each in counts:
+        col_value=each[:2]
+        row_value=each[2:]
+        if row_value not in row:
+            row[row_value]=0
+        if col_value not in col:
+            col[col_value]=0
+        row[row_value]+=counts[each]
+        col[col_value]+=counts[each]
 
-        #execute_on_IBM(qc, num_shots=500):
 
-    # Get data     
-    logger.debug (counts)
-    logger.debug ("========================")
-    answers = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
-    logger.info ("All Results")
-    rows={}
-    cols={}
-    for each in answers:
-        bits = each[::-1]
-        row,column = bits.split(" ")
-        logger.debug ("b'%s' [Fila: %s, Col: %s] --> %s" %(each, int(row, 2), int(column, 2), answers[each]))
+    print ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
+    print ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
 
-        # Store results by row & column
-        if int(row, 2) not in rows:
-            rows[int(row, 2)]=0
-        rows[int(row, 2)]+=answers[each]
+    selected_row=list({k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
+    selected_row=str(selected_row)[::-1]
+    selected_row = int(selected_row,2)
+    selected_col=list({k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})[0]
+    selected_col=str(selected_col)[::-1]
+    selected_col = int(selected_col,2)
 
-        if int(column, 2) not in cols:
-            cols[int(column, 2)]=0
-        cols[int(column, 2)]+=answers[each]    
-    
-    logger.info ("By Row and Column:")
-    logger.debug ("ROWS: %s" %{k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)})    
-    logger.debug ("COLUMNS: %s" %{k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)})
+    print ("Selected ROW: %s" %selected_row)
+    print ("Selected COL: %s" %selected_col)
 
-    proposed_row = list({k: v for k, v in sorted(rows.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
-    proposed_column = list({k: v for k, v in sorted(cols.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
-    logger.info ("PROPOSED ROW: %s" %proposed_row)
-    logger.info ("PROPOSED COLUMN: %s" %proposed_column)
+else:
+    oracle(qc, search_space, positions, temporary, ancilla, output)
+    add_measurement(qc, output, "res1")
+    counts=simulate(qc, num_shots=600)
+    print (counts)
 
-    show_map(inp_map_string, 
-        GRID_WIDTH, BYTE_SIZE, 
-        proposed_row, 
-        proposed_column
-    )
-
- 
-##  ------------------------- MAIN  ------------------------------------------------------------------
-if __name__ == "__main__":
-    logger.info(" -------------------------- STARTING ----------------------------")
-    if TEST_ORACLE:
-        logger.info ("In this run, we will test the oracle (no repetition or diffusion)")
-        main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
-    else:
-        logger.info ("Send to an external provider: [ %s ]" %MAKE_IT_REAL)
-        main(inp_map_string, inp_pattern_row, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
-        logger.info ("--- 🏁 FINISHED ---")
