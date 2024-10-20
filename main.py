@@ -59,8 +59,11 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["00 10 00"] ,
-    ["00 11 00"] ,
+    ["0 0 0 0 "] ,
+    ["0 0 0 0 "] ,
+    ["0 0 0 0 "] ,
+    ["0 0 0 1 "] ,    
+ 
 ]
 
 for each in inp_map_string:
@@ -69,8 +72,8 @@ print (" ")
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  ["10"] # row ?
-inp_pattern_col=  ["10"] # col ?
+inp_pattern_row=  ["1"] # row ?
+inp_pattern_col=  ["1"] # col ?
 
 inp_map_string_joined = (  ("".join(["".join(each) for each in inp_map_string])).replace(" ","") )
 inp_pattern_row_joined = "".join(inp_pattern_row)
