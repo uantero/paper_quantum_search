@@ -77,35 +77,39 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
     sampler = Sampler(backend)
     job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
     logger.info(f"job id: {job.job_id()}")
-    results = job.result()
 
-    logger.info (results)
- 
-    row = results[0].data.cbit_row_result.get_counts()
-    column = results[0].data.cbit_column_result.get_counts()
-    selected_row=None
-    selected_column=None
-    logger.debug ("COLUMN:")
-    logger.debug  (column)
-    answers = {k: v for k, v in sorted(column.items(), key=lambda item: item[1], reverse=True)}
-    selected_column = sorted(column.items(), key=lambda item: item[1], reverse=True)[0]
-    logger.info ("COLUMN Results")
-    for each in answers:
-        bits = each[::-1]
-        if not selected_column:
-            selected_column = int(bits, 2)        
-        logger.debug ("b'%s' [Columna: %s] --> %s" %(each, int(bits, 2), answers[each]))    
+    job_result = job.result()
 
-    logger.debug ("ROW:")
-    logger.debug  (row)
-    answers = {k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}
-    selected_row = sorted(row.items(), key=lambda item: item[1], reverse=True)[0]
-    logger.info ("ROW Results")
-    for each in answers:
-        bits = each[::-1]
-        if not selected_row:
-            selected_row = int(bits, 2)        
-        logger.debug ("b'%s' [Fila: %s] --> %s" %(each, int(bits, 2), answers[each]))    
+    results=job_result
+    counts = results[0].data.res1.get_counts()
+    col={}
+    row={}
+    for each in counts:
+        col_value=each[:2]
+        row_value=each[2:]
+        if row_value not in row:
+            row[row_value]=0
+        if col_value not in col:
+            col[col_value]=0
+        row[row_value]+=counts[each]
+        col[col_value]+=counts[each]
+
+
+    print ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
+    print ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
+
+    selected_row=list({k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
+    selected_row=str(selected_row)[::-1]
+    selected_row = int(selected_row,2)
+    selected_col=list({k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})[0]
+    selected_col=str(selected_col)[::-1]
+    selected_col = int(selected_col,2)
+
+    print ("Selected ROW: %s" %selected_row)
+    print ("Selected COL: %s" %selected_col)
+
+
+    
 
     if show_results:
         show_results(selected_row, selected_column)    

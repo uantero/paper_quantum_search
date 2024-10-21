@@ -59,10 +59,12 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["0 0 0 0 "] ,
-    ["0 0 0 0 "] ,
-    ["0 0 0 0 "] ,
-    ["0 0 0 1 "] ,    
+    ["0 0 1 1 0 0"] ,
+    ["1 0 0 0 0 0"] ,
+    ["0 0 0 0 0 0"] ,
+    ["1 0 0 1 0 1"] ,    
+    ["1 1 0 0 0 0"] ,        
+    ["0 0 0 1 0 0"] ,        
  
 ]
 
@@ -72,8 +74,8 @@ print (" ")
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
-inp_pattern_row=  ["1"] # row ?
-inp_pattern_col=  ["1"] # col ?
+inp_pattern_row=  ["1", "0", "1"] # row ?
+inp_pattern_col=  ["1", "0", "1"] # col ?
 
 inp_map_string_joined = (  ("".join(["".join(each) for each in inp_map_string])).replace(" ","") )
 inp_pattern_row_joined = "".join(inp_pattern_row)
@@ -83,7 +85,7 @@ inp_pattern_col_joined = "".join(inp_pattern_col)
 BYTE_SIZE = len(inp_pattern_row[0]) # 1 / 2 / ... bits ?
 
 # Send it to an external provider?
-MAKE_IT_REAL = False
+MAKE_IT_REAL = True
 
 # Which external provider?
 # OPTIONS: IONQ, IBM, QUANTUMINSPIRE
@@ -293,7 +295,12 @@ if not TEST_ORACLE:
 
 
     add_measurement(qc, search_space, "res1")
-    counts=simulate(qc, num_shots=600)
+
+    if MAKE_IT_REAL:
+        if SEND_TO=="IBM":
+            counts=execute_on_IBM(qc, 2800)
+    else:
+        counts=simulate(qc, num_shots=600)
     row={}
     col={}
     for each in counts:
