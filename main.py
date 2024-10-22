@@ -81,10 +81,12 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["0 0 1 0 "] ,
-    ["0 1 0 1 "] ,
-    ["0 0 1 0 "] ,
-    ["0 0 1 0 "] ,
+    ["11 00 00 01 00 00"] ,
+    ["01 00 10 01 00 00"] ,
+    ["01 10 11 10 00 00"] ,
+    ["01 00 10 00 00 00"] ,
+    ["01 00 00 00 10 00"] ,
+    ["01 00 01 00 01 00"] 
 ]
 
 for each in inp_map_string:
@@ -95,8 +97,11 @@ print (" ")
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1", "1"]#, "0"] # row ?
-inp_pattern_col=  ["1"] # col ?
+inp_pattern_row=  ["10","10"]#, "0"] # row ?
+inp_pattern_col=  ["10", "10"] # col ?
+
+logger.info("Look for pattern in row: %s" %inp_pattern_row)
+logger.info("Look for pattern in column: %s" %inp_pattern_col)
 
 inp_map_string_joined = (  ("".join(["".join(each) for each in inp_map_string])).replace(" ","") )
 inp_pattern_row_joined = "".join(inp_pattern_row)
@@ -106,7 +111,7 @@ inp_pattern_col_joined = "".join(inp_pattern_col)
 BYTE_SIZE = len(inp_pattern_row[0]) # 1 / 2 / ... bits ?
 
 # Send it to an external provider?
-MAKE_IT_REAL = False
+MAKE_IT_REAL = True
 
 # Which external provider?
 # OPTIONS: IONQ, IBM, QUANTUMINSPIRE
@@ -193,7 +198,7 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
         for each_column_index in range( math.floor(len(col_elements)/2),  len(columns) -  math.floor(len(col_elements))+1):    
             #print ("COL! %s" %each_column_index)
             temp_positions=[]            
-            start_col_positions = [each for each in range(-math.floor(len(row_elements)/2), math.floor(len(row_elements)/2))]            
+            start_col_positions = [each for each in range(-math.floor(len(row_elements)/2), math.floor(len(row_elements)/2)) or [0] ]            
             for each_row_bit in range(len(row_elements)):
                 if each_column_index+each_row_bit+start_col_positions[each_row_bit]>=len(rows[each_row_index]):
                     continue
@@ -210,7 +215,7 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
                 #print("Row: %s, Col: %s --> %s" %(each_row_index, each_column_index, row_elements[each_row_bit]))
                 temp_positions.append(element)
 
-            start_row_positions = [each for each in range(-math.floor(len(col_elements)/2), math.floor(len(col_elements)/2))]            
+            start_row_positions = [each for each in range(-math.floor(len(col_elements)/2), math.floor(len(col_elements)/2)) or [0] ]            
             if len(inp_pattern_col)>1:
                 for each_col_bit in range(len(col_elements)):
                     if each_row_index+each_col_bit+start_row_positions[each_col_bit]>=len(rows):
@@ -287,7 +292,14 @@ logger.info("Number of qubits: %s" %(qc.num_qubits) )
 
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
-print (positions)
+N=len(positions) # Total options
+M=1  # "good" solutions
+
+num_repetitions = max(1,math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
+logger.info("Num. repetitions: %s" %num_repetitions)
+
+#print (positions)
+#asdasd=aasda
 #checkEqual(qc, [map[3]], [search_row[0]], "1", temporary, ancilla, output, search_space)
 
 def oracle(qc, search_space, positions, temporary, ancilla, output):
@@ -326,12 +338,6 @@ logger.info("Looking for (col): (%s)" %inp_pattern_col)
 
 
 if not TEST_ORACLE:
-    N=len(positions)
-    M=2
-
-    num_repetitions = max(1,math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
-    logger.info("Num. repetitions: %s" %num_repetitions)
-
     #for each in range(num_repetitions):
     for each in range(num_repetitions):
         oracle(qc, search_space, positions, temporary, ancilla, output)
@@ -342,7 +348,8 @@ if not TEST_ORACLE:
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            counts=execute_on_IBM(qc, 2800)
+            #def show_map()
+            counts=execute_on_IBM(qc, 2800, num_s_bits)
     else:
         counts=simulate(qc, num_shots=600)
     row={}

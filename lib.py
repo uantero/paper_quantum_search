@@ -62,7 +62,7 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
 
  
 
-def execute_on_IBM(qc, num_shots=500, show_results=None):
+def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
     from qiskit_ibm_runtime import QiskitRuntimeService
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
  
@@ -75,6 +75,7 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
     logger.info ("Sending real JOB to IBM")
     backend = service.least_busy(operational=True, simulator=False)
     sampler = Sampler(backend)
+    logger.info ("... transpiling...")
     job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
     logger.info(f"job id: {job.job_id()}")
 
@@ -85,8 +86,8 @@ def execute_on_IBM(qc, num_shots=500, show_results=None):
     col={}
     row={}
     for each in counts:
-        col_value=each[:2]
-        row_value=each[2:]
+        col_value=each[:num_s_bits]
+        row_value=each[num_s_bits:]
         if row_value not in row:
             row[row_value]=0
         if col_value not in col:
