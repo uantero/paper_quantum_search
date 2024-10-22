@@ -81,27 +81,75 @@ inp_map_string = [
 ##  ----------- GLOBALS --------------------
 # THE MAP
 inp_map_string = [
-    ["11 00 00 01 00 00"] ,
-    ["01 00 10 01 00 00"] ,
-    ["01 10 11 10 00 00"] ,
-    ["01 00 10 00 00 00"] ,
-    ["01 00 00 00 10 00"] ,
-    ["01 00 01 00 01 00"] 
+
+    ["0 0 0 0 0 0 "] ,
+    ["0 0 0 0 0 0 "] ,
+    ["0 0 0 0 0 0 "] ,
+    ["0 0 0 1 0 0 "] ,
+    ["0 0 1 0 1 0 "] ,
+    ["0 0 0 1 0 0 "] ,
+
 ]
 
-for each in inp_map_string:
-    print (each)
-print (" ")
+## ---------------------------------------------
+## Show map
+def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None):
+    from textwrap import wrap
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    BLANK = "".join([" " for each in range(BYTE_SIZE)])
+    LINE = "-"
+
+    # Upper header
+    # list of items
+    column_items=""
+    for index, each in enumerate(range(GRID_WIDTH)):
+        if index==selected_column:
+            column_items = column_items + colored(str(each), "red", attrs=['bold'])+BLANK
+        else:
+            column_items = column_items + str(each)+BLANK
+    
+    # Remove color codes for counting the width
+    table_width =  len(ansi_escape.sub('', column_items))
+    # Draw list and horizontal lines
+    print ("")
+    print ("          %s" %column_items )
+    print ("         %s" %"".join([LINE for each in range(table_width+2)]))
+    index=-1
+    for each_map_line in wrap(inp_map_string, GRID_WIDTH*BYTE_SIZE ):
+        line_items = wrap(each_map_line, BYTE_SIZE)
+
+        index+=1
+        if index==selected_row:
+            print (  colored("       %s| %s  | " %(index, " ".join(line_items)) , 'red', attrs=['bold'] ) )
+        else:
+            line=""
+            col_index=-1
+            for each_column_item in line_items:                
+                col_index+=1
+                if col_index==selected_column:
+                    line = line + colored(each_column_item, "red", attrs=['bold']) + " "
+                else:
+                    line = line + each_column_item + " "
+
+            print ("       %s| %s | " %(index, line))
+    print ("         %s" %"".join([LINE for each in range(table_width+2)]))    
+
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["10","10"]#, "0"] # row ?
-inp_pattern_col=  ["10", "10"] # col ?
+inp_pattern_row=  ["1","0","1"]#, "0"] # row ?
+inp_pattern_col=  ["1","0","1"] # col ?
 
-logger.info("Look for pattern in row: %s" %inp_pattern_row)
-logger.info("Look for pattern in column: %s" %inp_pattern_col)
+if len(inp_pattern_row)%2==0:
+    logger.error("Row pattern length has to be odd (now is even)")
+    sys.exit(1)
+
+if len(inp_pattern_col)%2==0:
+    logger.error("Column pattern length has to be odd (now is even)")
+    sys.exit(1)    
 
 inp_map_string_joined = (  ("".join(["".join(each) for each in inp_map_string])).replace(" ","") )
 inp_pattern_row_joined = "".join(inp_pattern_row)
@@ -131,6 +179,8 @@ GRID_HEIGHT = int(len(inp_map_string) )
 # Join inp_map_string into a single string
 inp_map_string="".join(["".join(item) for column in inp_map_string for item in column]).replace(" ","").replace("X","1")
 
+
+show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None)
 
 # Ok! Let's look in columns...
 # Consider bytes...
@@ -190,24 +240,22 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
         def __repr__(self):
             return " (%s|%s[%s|%s]<%s|%s>) " %(self.row, self.col, self.type, self.element, self.compare_to, self.compare_to_str)
     
-    for each_row_index in range( math.floor(len(row_elements)/2),  len(rows) -  len(row_elements) +1 ):    
+    for each_row_index in range( math.floor(len(row_elements)/2),  len(rows) -  math.floor(len(row_elements)/2)  ):    
         #print ("ROW! %s" %each_row_index)
-        if each_row_index>=len(rows):
-            continue
-        this_row=rows[each_row_index]                
-        for each_column_index in range( math.floor(len(col_elements)/2),  len(columns) -  math.floor(len(col_elements))+1):    
-            #print ("COL! %s" %each_column_index)
-            temp_positions=[]            
-            start_col_positions = [each for each in range(-math.floor(len(row_elements)/2), math.floor(len(row_elements)/2)) or [0] ]            
-            for each_row_bit in range(len(row_elements)):
-                if each_column_index+each_row_bit+start_col_positions[each_row_bit]>=len(rows[each_row_index]):
-                    continue
 
-                
+        this_row=rows[each_row_index]                
+        for each_column_index in range( math.floor(len(col_elements)/2),  len(columns) - math.floor(len(col_elements)/2)  ):    
+            #print ("COL! %s" %each_column_index)            
+            temp_positions=[]            
+            start_col_positions = [each for each in range(-math.floor(len(row_elements)/2), math.ceil(len(row_elements)/2)) ]
+            #print (start_col_positions)
+            
+            for each_row_bit in range(len(row_elements)):
+                col_position = start_col_positions.pop(0)               
                 element=Element(
                         each_row_index, 
                         each_column_index, 
-                        rows[each_row_index][each_column_index+each_row_bit+start_col_positions[each_row_bit]],
+                        rows[each_row_index][each_column_index+col_position],
                         "row",
                         inp_pattern_row[each_row_bit],
                         row_elements[each_row_bit]
@@ -215,11 +263,10 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
                 #print("Row: %s, Col: %s --> %s" %(each_row_index, each_column_index, row_elements[each_row_bit]))
                 temp_positions.append(element)
 
-            start_row_positions = [each for each in range(-math.floor(len(col_elements)/2), math.floor(len(col_elements)/2)) or [0] ]            
+            start_row_positions = [each for each in range(-math.floor(len(col_elements)/2), math.ceil(len(col_elements)/2)) ]
             if len(inp_pattern_col)>1:
                 for each_col_bit in range(len(col_elements)):
-                    if each_row_index+each_col_bit+start_row_positions[each_col_bit]>=len(rows):
-                        continue
+                    row_positions=start_row_positions.pop(0)
 
                     #print (".....")
                     #print (each_row_index)
@@ -227,12 +274,10 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
                     #print (start_row_positions[each_col_bit])
 
                     #print("*Row: %s, Col: %s" %(each_row_index, each_column_index))
-                    if each_row_index+each_col_bit>=len(rows):
-                        continue
                     element=Element(
                                 each_row_index, 
                                 each_column_index, 
-                                rows[each_row_index+each_col_bit+start_row_positions[each_col_bit]][each_column_index],
+                                rows[each_row_index+row_positions][each_column_index],
                                 "col",
                                 inp_pattern_col[each_col_bit],
                                 col_elements[each_col_bit]
@@ -245,17 +290,20 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
     return positions
 
 
+logger.info("Look for pattern in row: %s" %inp_pattern_row)
+logger.info("Look for pattern in column: %s" %inp_pattern_col)
+logger.info("BYTE SIZE: %s" %BYTE_SIZE)
 
 num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
 logger.info("Num qubits in search space: %squbits (2x %squbits)" %(2*num_s_bits, num_s_bits))
 
+
 # Create required registers 
-print (inp_map_string_joined)
 search_space=QuantumRegister(num_s_bits + num_s_bits, "s")
 map=QuantumRegister(len(inp_map_string_joined), "map")
 search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
 search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
-temporary=QuantumRegister(len(search_row) + len(search_col), "temporary")
+temporary=QuantumRegister(len(search_row), "temporary")
 ancilla=QuantumRegister(1, "ancilla")
 output=QuantumRegister(1, "output")
 out_search=ClassicalRegister(len(search_space),"out_search")
@@ -263,16 +311,15 @@ output_c=ClassicalRegister(len(output),"output_oracle")
 
 qc = QuantumCircuit(search_space, map, search_row, search_col, temporary, ancilla, output)
 
-print ("JOINED MAP: %s" %inp_map_string_joined)
-print ("JOINED inp_pattern_row_joined: %s" %inp_pattern_row_joined)
+#print ("JOINED MAP: %s" %inp_map_string_joined)
+#print ("JOINED inp_pattern_row_joined: %s" %inp_pattern_row_joined)
 
 #SEARCH SPACE:
-desired_row=1
-desired_col=1
+desired_row=0
+desired_col=2
 format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
 formated_searchspace = "%s%s" %(format_string.format(desired_row), format_string.format(desired_col))
-print ("desired search_space: %s" %formated_searchspace)
-print ("MAP: %s" %inp_map_string_joined)
+#print ("desired search_space: %s" %formated_searchspace)
 
 set_inputs(qc, inp_map_string_joined, map )
 if not TEST_ORACLE:
@@ -284,22 +331,30 @@ set_inputs(qc, inp_pattern_col_joined, search_col)
 
 #checkEqual(qc, [map[0]], [search_row[0]], inp_pattern_row_joined, temporary, ancilla, output)
 
-print (len(inp_pattern_row))
 positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
-N = len(positions)
 
 logger.info("Number of qubits: %s" %(qc.num_qubits) )
 
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
 N=len(positions) # Total options
-M=1  # "good" solutions
+#M=math.floor( math.sqrt(N))  # amount of "good" solutions
+M=1.5
 
-num_repetitions = max(1,math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
-logger.info("Num. repetitions: %s" %num_repetitions)
+logger.info("N: %s, M: %s" %(N, M))
+
+num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
+
+logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
+
+"""
+for each_pos in positions:
+    print (each_pos)
+    print (" --- ")
+asdasd=asd
+"""
 
 #print (positions)
-#asdasd=aasda
 #checkEqual(qc, [map[3]], [search_row[0]], "1", temporary, ancilla, output, search_space)
 
 def oracle(qc, search_space, positions, temporary, ancilla, output):
@@ -332,11 +387,6 @@ def oracle(qc, search_space, positions, temporary, ancilla, output):
                 qc.x(flipped_s)
 
 
-logger.info("Looking at: (%s)" %search_space)
-logger.info("Looking for (row): (%s)" %inp_pattern_row)
-logger.info("Looking for (col): (%s)" %inp_pattern_col)
-
-
 if not TEST_ORACLE:
     #for each in range(num_repetitions):
     for each in range(num_repetitions):
@@ -348,8 +398,9 @@ if not TEST_ORACLE:
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            #def show_map()
-            counts=execute_on_IBM(qc, 2800, num_s_bits)
+            def show_map_info(selected_row, selected_column):
+                show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+            counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
     else:
         counts=simulate(qc, num_shots=600)
     row={}

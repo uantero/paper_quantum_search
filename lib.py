@@ -113,7 +113,7 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
     
 
     if show_results:
-        show_results(selected_row, selected_column)    
+        show_results(selected_row, selected_col)    
 
     logger.info ("-- FINISHED --")
     sys.exit(0)
@@ -214,7 +214,7 @@ def execute_on_QuantumInspire(qc, num_shots=500):
 def simulate(qc, num_shots=300):
     from qiskit.providers.basic_provider import BasicProvider as BasicAerProvider
     provider = BasicAerProvider()        
-    backend = Aer.get_backend('qasm_simulator')    
+    backend = Aer.get_backend('qasm_simulator')
     result = backend.run(transpile(qc, backend), shots=num_shots).result()
     counts = result.get_counts()
 
