@@ -86,8 +86,8 @@ CONFIG = {
         "check_col": 1  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": False, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONIQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IBM"
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
+    "SELECTED_PROVIDER": "IONQ"
 }
 
 
@@ -97,28 +97,20 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0 0 0 0 0 "] ,
-    ["0 0 0 0 0 0 "] ,
-    ["0 0 0 0 0 0 "] ,
-    ["0 0 0 1 0 0 "] ,
-    ["0 0 1 0 1 0 "] ,
-    ["0 0 0 1 0 0 "] ,
-
-]
-
-inp_map_string = [
-
-    ["10 10 10 "] ,
-    ["10 10 11 "] ,
+    ["0 0 1 0  "] ,
+    ["0 1 0 1  "] ,
+    ["0 0 1 0  "] ,
     
+
+
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["10",]#, "0"] # row ?
-inp_pattern_col=  ["11"] # col ?
+inp_pattern_row=  ["1","0","1"]#, "0"] # row ?
+inp_pattern_col=  ["1","0","1"] # col ?
 
 #####################
 
@@ -291,6 +283,8 @@ if not TEST_ORACLE: # CALCULATE
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
             counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
+        elif SEND_TO=="IONQ":
+            counts=execute_on_IONQ(qc, 2800)
     else:
         counts=simulate(qc, num_shots=600)
     row={}
