@@ -6,7 +6,7 @@ from qiskit.circuit.library import MCXGate
 import os, sys
 from logs import logger
 from dotenv import load_dotenv
-
+from termcolor import colored
 
 
 def initialize_H(qc, qubits):
@@ -146,7 +146,7 @@ def execute_on_IONQ(qc, num_shots=500):
 
 # If both register are equal, all output qubits are switched (additional_qubits are additional checks)
 
-def checkEqual(qc, check_list, check_temporary, ancilla, output, additional_qubits):
+def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
 #def checkEqual(qc, reg1, reg2, reg1_literal_value, temporary, output, additional_qubits):
     
     # Multi check....

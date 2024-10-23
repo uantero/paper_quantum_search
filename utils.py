@@ -1,5 +1,6 @@
 import re
 import math
+from termcolor import colored
 
 ## ---------------------------------------------
 ## Show map

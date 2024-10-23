@@ -6,24 +6,6 @@
 ## Calculated in IBM
 """
 
-        0 1 2 3 4 5
-    0 ['0 0 1 1 0 0']
-    1 ['1 0 0 0 0 0']
-    2 ['0 0 0 0 0 0']
-    3 ['1 0 0 1 0 1']
-    4 ['1 1 0 0 0 0']
-    5 ['0 0 0 1 0 0']
-
-   Job: cwb9b3wjyrs0008wyzt0
-   21/10/2024:
-
-    ROWS: {'0100': 188, '1100': 188, '1001': 186, '0101': 184, '1000': 179, '1110': 179, '0001': 179, '0010': 178, '0111': 176, '0110': 175, '1101': 174, '0011': 170, '0000': 168, '1111': 167, '1011': 157, '1010': 152}
-    COLS: {'11': 804, '10': 747, '01': 646, '00': 603}
-
-   Result: 
-     · ROW: 3
-     · COL: 3
-
 
 """
  
@@ -98,10 +80,9 @@ CONFIG = {
 inp_map_string = [
 
     ["0 0 1 0  "] ,
-    ["0 1 0 1  "] ,
-    ["0 0 1 0  "] ,
-    
-
+    ["0 1 1 1  "] ,
+    ["0 1 0 0  "] ,
+    ["1 0 1 0  "] , 
 
 ]
 
@@ -109,18 +90,18 @@ inp_map_string = [
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1","0","1"]#, "0"] # row ?
-inp_pattern_col=  ["1","0","1"] # col ?
+inp_pattern_row=  ["1","0"]#, "0"] # row ?
+inp_pattern_col=  ["1","0"] # col ?
 
 #####################
 
-if len(inp_pattern_row)%2==0:
-    logger.error("Row pattern length has to be odd (now is even)")
-    sys.exit(1)
+#if len(inp_pattern_row)%2==0:
+#    logger.error("Row pattern length has to be odd (now is even)")
+#    sys.exit(1)
 
-if len(inp_pattern_col)%2==0:
-    logger.error("Column pattern length has to be odd (now is even)")
-    sys.exit(1)    
+#if len(inp_pattern_col)%2==0:
+#    logger.error("Column pattern length has to be odd (now is even)")
+#    sys.exit(1)    
 
 
 # Some string managing...
@@ -166,14 +147,17 @@ search_col=search_row
 
 eq_temporary=QuantumRegister(BYTE_SIZE  , "eq_temporary")
 check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
-ancilla=QuantumRegister(1, "ancilla")
 output=QuantumRegister(1, "output")
 
 out_search=ClassicalRegister(len(search_space),"out_search")
 output_c=ClassicalRegister(len(output),"output_oracle")
 
 #qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, ancilla, output)
-qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, ancilla, output)
+qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, output)
+search_col=search_row
+
+print (qc.num_qubits)
+
 
 # -----------
 # Used for checking the ORACLE (if oracle testing is enabled)
@@ -224,7 +208,7 @@ logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
 
 # The ORACLE !
-def oracle(qc, search_space, positions, eq_temporary, check_temporary, ancilla, output):
+def oracle(qc, search_space, positions, eq_temporary, check_temporary, output):
     format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
     
     for each_position in positions:
@@ -261,7 +245,7 @@ def oracle(qc, search_space, positions, eq_temporary, check_temporary, ancilla, 
 
         # ---------
         # Perform search
-        checkEqual(qc, check_list, check_temporary, ancilla, output, search_space)
+        checkEqual(qc, check_list, check_temporary, output, search_space)
                 
         # Restore search_space
         if flipped_s:
@@ -272,7 +256,7 @@ def oracle(qc, search_space, positions, eq_temporary, check_temporary, ancilla, 
 if not TEST_ORACLE: # CALCULATE
     #for each in range(num_repetitions):
     for each in range(num_repetitions):
-        oracle(qc, search_space, positions, eq_temporary, check_temporary, ancilla, output)
+        oracle(qc, search_space, positions, eq_temporary, check_temporary, output)
         diffusion(qc, search_space, output)    
 
 
@@ -313,9 +297,11 @@ if not TEST_ORACLE: # CALCULATE
     print ("Selected ROW: %s" %selected_row)
     print ("Selected COL: %s" %selected_col)
 
+    show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_col)
+
 else: # TEST THE ORACLE
     logger.info("Looking for: %s" %formated_searchspace)
-    oracle(qc, search_space, positions, eq_temporary, check_temporary, ancilla, output)
+    oracle(qc, search_space, positions, eq_temporary, check_temporary, output)
     add_measurement(qc, output, "res1")
     counts=simulate(qc, num_shots=200)
     # Output should be 1 (if row and col values are correct....)
