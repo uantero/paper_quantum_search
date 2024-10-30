@@ -156,7 +156,7 @@ output_c=ClassicalRegister(len(output),"output_oracle")
 qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, output)
 search_col=search_row
 
-print (qc.num_qubits)
+#print (qc.num_qubits)
 
 
 # -----------
@@ -166,8 +166,6 @@ desired_row=CONFIG["TEST_ORACLE"]["check_row"]
 desired_col=CONFIG["TEST_ORACLE"]["check_col"]
 format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
 formated_searchspace = "%s%s" %(format_string.format(desired_row), format_string.format(desired_col))
-print (format_string)
-print (formated_searchspace)
 
 set_inputs(qc, inp_map_string_joined, map )
 
@@ -284,8 +282,8 @@ if not TEST_ORACLE: # CALCULATE
         col[col_value]+=counts[each]
 
 
-    print ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
-    print ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
+    logger.debug ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
+    logger.debug ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
 
     selected_row=list({k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
     selected_row=str(selected_row)[::-1]
@@ -294,8 +292,8 @@ if not TEST_ORACLE: # CALCULATE
     selected_col=str(selected_col)[::-1]
     selected_col = int(selected_col,2)
 
-    print ("Selected ROW: %s" %selected_row)
-    print ("Selected COL: %s" %selected_col)
+    logger.info ("Selected ROW: %s" %selected_row)
+    logger.info ("Selected COL: %s" %selected_col)
 
     show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_col)
 
@@ -305,5 +303,5 @@ else: # TEST THE ORACLE
     add_measurement(qc, output, "res1")
     counts=simulate(qc, num_shots=200)
     # Output should be 1 (if row and col values are correct....)
-    print (counts)
+    logger.info (counts)
 
