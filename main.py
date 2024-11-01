@@ -63,13 +63,14 @@ inp_map_string = [
 
 CONFIG = {
     "TEST_ORACLE": {
-        "enable": False, # Used to validate the Oracl"
-        "check_row": 0, # Validate the oracle with this values (check if output=1)
-        "check_col": 1  # Validate the oracle with this values (check if output=1)
+        "enable": True, # Used to validate the Oracl"
+        "check_row": 2, # Validate the oracle with this values (check if output=1)
+        "check_col": 2  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": False, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IONQ"
+    "SELECTED_PROVIDER": "IONQ",
+    "REUSE_ROW_COL_QUBITS": True,
 }
 
 
@@ -80,9 +81,9 @@ CONFIG = {
 inp_map_string = [
 
     ["0 0 1 0  "] ,
-    ["0 1 1 1  "] ,
-    ["0 1 0 0  "] ,
-    ["1 0 1 0  "] , 
+    ["0 0 0 1  "] ,
+    ["0 1 1 0  "] ,
+    ["0 0 1 0  "] , 
 
 ]
 
@@ -90,8 +91,8 @@ inp_map_string = [
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1","0"]#, "0"] # row ?
-inp_pattern_col=  ["1","0"] # col ?
+inp_pattern_row=  ["1","1"]#, "0"] # row ?
+inp_pattern_col=  ["1","1"] # col ?
 
 #####################
 
@@ -143,7 +144,11 @@ map=QuantumRegister(len(inp_map_string_joined), "map")
 search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
 # Let's assume that row and col are equal
 #search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
-search_col=search_row
+
+if CONFIG["REUSE_ROW_COL_QUBITS"]:
+    search_col=search_row
+else:
+    search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
 
 eq_temporary=QuantumRegister(BYTE_SIZE  , "eq_temporary")
 check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
@@ -153,8 +158,12 @@ out_search=ClassicalRegister(len(search_space),"out_search")
 output_c=ClassicalRegister(len(output),"output_oracle")
 
 #qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, ancilla, output)
-qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, output)
-search_col=search_row
+
+if CONFIG["REUSE_ROW_COL_QUBITS"]:
+    qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, output)
+    search_col=search_row
+else:
+    qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, output)
 
 #print (qc.num_qubits)
 
@@ -177,13 +186,16 @@ else:
 
 # Set patterns to search for 
 set_inputs(qc, inp_pattern_row_joined, search_row)
-#set_inputs(qc, inp_pattern_col_joined, search_col)
+if not CONFIG["REUSE_ROW_COL_QUBITS"]:
+    set_inputs(qc, inp_pattern_col_joined, search_col)
 
 #checkEqual(qc, [map[0]], [search_row[0]], inp_pattern_row_joined, temporary, ancilla, output)
 
 
 # Create all possible combinations, and get back what has to be checked
 positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
+
+print (positions)
 
 
 logger.info("Number of qubits: %s" %(qc.num_qubits) )
