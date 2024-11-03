@@ -139,6 +139,7 @@ def execute_on_IONQ(qc, num_shots=500):
     if qc.num_qubits<26:
         job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
             "noise": {"model": "aria-1"}}
+            #"noise": {"model": "ideal"}}
         )
     else:
         job = simulator_backend.run(qc, shots=num_shots, extra_query_params={

@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 import matplotlib.pyplot as plt
 import sys, os
+import datetime
 import numpy as np
 import math
 from textwrap import wrap
@@ -69,7 +70,7 @@ CONFIG = {
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IONQ",
+    "SELECTED_PROVIDER": "IBM",
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
@@ -80,9 +81,8 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0 0 "] ,
-    ["0 1 0 "] ,
-    ["0 0 0 "] ,
+    ["0 0"] ,
+    ["0 1"] ,
 
 ]
 
@@ -90,8 +90,8 @@ inp_map_string = [
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1", ]#, "0"] # row ?
-inp_pattern_col=  ["1", ] # col ?
+inp_pattern_row=  ["1"]#, "0"] # row ?
+inp_pattern_col=  ["1"] # col ?
 
 #####################
 
@@ -124,6 +124,7 @@ GRID_HEIGHT = int(len(inp_map_string) )
 # Join inp_map_string into a single string
 inp_map_string="".join(["".join(item) for column in inp_map_string for item in column]).replace(" ","").replace("X","1")
 
+logger.info("[[ STARTING MAP SEARCH]] @%s" %datetime.datetime.now())
 
 # SHOW MAP & Output other info -------------------------
 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None)
@@ -218,9 +219,11 @@ logger.info("N: %s, M: %s" %(N, M))
 num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
 
 # Hack for IBM / IONQ....
+"""
 if MAKE_IT_REAL:
     if SEND_TO in ["IBM"]:
         num_repetitions=1
+"""
 
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
@@ -286,11 +289,13 @@ if not TEST_ORACLE: # CALCULATE
 
     add_measurement(qc, search_space, "res1")
 
+    logger.info("CIRCUIT DEPTH: %s" %qc.depth())
+
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 1200, show_map_info, num_s_bits)
+            counts=execute_on_IBM(qc, 3200, show_map_info, num_s_bits)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
@@ -300,8 +305,8 @@ if not TEST_ORACLE: # CALCULATE
     row={}
     col={}
     for each in counts:
-        col_value=each[:2]
-        row_value=each[2:]
+        col_value=each[:int(len(each)/2)]
+        row_value=each[int(len(each)/2):]
 
         if row_value not in row:
             row[row_value]=0
