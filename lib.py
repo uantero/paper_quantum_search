@@ -136,9 +136,16 @@ def execute_on_IONQ(qc, num_shots=500):
     OPTIMIZATION_LEVEL=3
      
     print ("Sending real JOB to IONQ")
-    job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
-        "noise": {"model": "aria-1"}}
-    )
+    if qc.num_qubits<26:
+        job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
+            "noise": {"model": "aria-1"}}
+        )
+    else:
+        job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
+            "noise": {"model": "ideal"}}
+        )    
+
+    print ("Job: %s" %job)
 
     result=job.get_counts()
  
@@ -149,8 +156,8 @@ def execute_on_IONQ(qc, num_shots=500):
 def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
 #def checkEqual(qc, reg1, reg2, reg1_literal_value, temporary, output, additional_qubits):
     
+        
     # Multi check....
-    flipped_reg_bits = []
     used_bits=[]
     temporary_check_index=-1
     for each_check in check_list:        
@@ -158,50 +165,27 @@ def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
         reg2 = each_check["reg2"]
         reg2str = each_check["reg2str"]
 
-        # Flip reg1 & reg2 if required                
+        # Check qubit by qubit
         for bit_index in range(len(reg1)):
             temporary_check_index+=1
-            if reg2str[bit_index]=="0":
-                qc.x(reg1[bit_index])   
-                qc.x(reg2[bit_index])            
-                flipped_reg_bits.append(reg1[bit_index])
-                flipped_reg_bits.append(reg2[bit_index])
-
             used_bits.append(  check_temporary[temporary_check_index]  )
             XNOR(qc, reg1[bit_index], reg2[bit_index], check_temporary[temporary_check_index])            
 
-        # Uncompute
-        if len(flipped_reg_bits):
-            qc.x(flipped_reg_bits)
-        
-    qc.mcx(used_bits + list(additional_qubits), output[0])
+
+    qc.mcx(used_bits + list(additional_qubits), output[0])    
+
 
     # Uncompute
-    flipped_reg_bits = []
-    used_bits=[]
     temporary_check_index=-1
     for each_check in check_list:
         temporary_check_index+=1
         reg1 = each_check["reg1"]
         reg2 = each_check["reg2"]
         reg2str = each_check["reg2str"]
-
-        # Flip reg1 & reg2 if required        
         
-        for k, pos in enumerate(reg2str):
-            if pos == "0":            
-                qc.x(reg1[k])   
-                qc.x(reg2[k])            
-                flipped_reg_bits.append(reg1[k])
-                flipped_reg_bits.append(reg2[k])
-
+        # Check qubit by qubit
         for bit_index in range(len(reg1)):
-            used_bits.append(  check_temporary[temporary_check_index]  )
             XNOR(qc, reg1[bit_index], reg2[bit_index], check_temporary[temporary_check_index])            
-
-        # Uncompute
-        if len(flipped_reg_bits):
-            qc.x(flipped_reg_bits)
 
     return qc
 
@@ -215,6 +199,8 @@ def execute_on_QuantumInspire(qc, num_shots=500):
     from quantuminspire.credentials import enable_account
     
     QI_URL = os.getenv('API_URL', 'https://api.quantum-inspire.com/')
+
+    logger.info ("Sending real JOB to QUANTUMINSPIRE")
 
     QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
 

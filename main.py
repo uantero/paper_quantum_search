@@ -63,14 +63,14 @@ inp_map_string = [
 
 CONFIG = {
     "TEST_ORACLE": {
-        "enable": True, # Used to validate the Oracl"
-        "check_row": 2, # Validate the oracle with this values (check if output=1)
-        "check_col": 2  # Validate the oracle with this values (check if output=1)
+        "enable": False, # Used to validate the Oracl"
+        "check_row": 0, # Validate the oracle with this values (check if output=1)
+        "check_col": 0  # Validate the oracle with this values (check if output=1)
     },
-    "MAKE_IT_REAL": False, # Sent it to some provider? (if False: simulate locally)
+    "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
     "SELECTED_PROVIDER": "IONQ",
-    "REUSE_ROW_COL_QUBITS": True,
+    "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
 
@@ -80,10 +80,9 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0 1 0  "] ,
-    ["0 0 0 1  "] ,
-    ["0 1 1 0  "] ,
-    ["0 0 1 0  "] , 
+    ["0 0 0 "] ,
+    ["0 1 0 "] ,
+    ["0 0 0 "] ,
 
 ]
 
@@ -91,8 +90,8 @@ inp_map_string = [
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1","1"]#, "0"] # row ?
-inp_pattern_col=  ["1","1"] # col ?
+inp_pattern_row=  ["1", ]#, "0"] # row ?
+inp_pattern_col=  ["1", ] # col ?
 
 #####################
 
@@ -142,15 +141,13 @@ logger.info("Num qubits in search space: %squbits (2x %squbits)" %(2*num_s_bits,
 search_space=QuantumRegister(num_s_bits + num_s_bits, "s")
 map=QuantumRegister(len(inp_map_string_joined), "map")
 search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
-# Let's assume that row and col are equal
-#search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
 
-if CONFIG["REUSE_ROW_COL_QUBITS"]:
-    search_col=search_row
+if not CONFIG["REUSE_ROW_COL_QUBITS"]:
+    search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")    
 else:
-    search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")
+    search_col=search_row
+    
 
-eq_temporary=QuantumRegister(BYTE_SIZE  , "eq_temporary")
 check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
 output=QuantumRegister(1, "output")
 
@@ -160,10 +157,9 @@ output_c=ClassicalRegister(len(output),"output_oracle")
 #qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, ancilla, output)
 
 if CONFIG["REUSE_ROW_COL_QUBITS"]:
-    qc = QuantumCircuit(search_space, map, search_row, eq_temporary, check_temporary, output)
-    search_col=search_row
+    qc = QuantumCircuit(search_space, map, search_row, check_temporary, output)    
 else:
-    qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, output)
+    qc = QuantumCircuit(search_space, map, search_row, search_col, check_temporary, output)
 
 #print (qc.num_qubits)
 
@@ -186,16 +182,28 @@ else:
 
 # Set patterns to search for 
 set_inputs(qc, inp_pattern_row_joined, search_row)
+
 if not CONFIG["REUSE_ROW_COL_QUBITS"]:
     set_inputs(qc, inp_pattern_col_joined, search_col)
 
-#checkEqual(qc, [map[0]], [search_row[0]], inp_pattern_row_joined, temporary, ancilla, output)
+checklist = [{
+                "reg1": map[0],
+                "reg2": search_row[0],
+                "reg2str": "1"
+            }]
 
+"""
+XNOR(qc, map[8], search_row[0], output[0])                        
+add_measurement(qc, output, "res1")
+counts=simulate(qc, num_shots=600)
+print (counts)
+sys.exit(0)
+"""
 
 # Create all possible combinations, and get back what has to be checked
 positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
 
-print (positions)
+#print (positions)
 
 
 logger.info("Number of qubits: %s" %(qc.num_qubits) )
@@ -207,7 +215,13 @@ M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
+num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
+
+# Hack for IBM / IONQ....
+if MAKE_IT_REAL:
+    if SEND_TO in ["IBM"]:
+        num_repetitions=1
+
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
 
@@ -218,7 +232,7 @@ logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
 
 # The ORACLE !
-def oracle(qc, search_space, positions, eq_temporary, check_temporary, output):
+def oracle(qc, search_space, positions, check_temporary, output):
     format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
     
     for each_position in positions:
@@ -255,7 +269,7 @@ def oracle(qc, search_space, positions, eq_temporary, check_temporary, output):
 
         # ---------
         # Perform search
-        checkEqual(qc, check_list, check_temporary, output, search_space)
+        checkEqual(qc, check_list, check_temporary, output, search_space)        
                 
         # Restore search_space
         if flipped_s:
@@ -266,7 +280,7 @@ def oracle(qc, search_space, positions, eq_temporary, check_temporary, output):
 if not TEST_ORACLE: # CALCULATE
     #for each in range(num_repetitions):
     for each in range(num_repetitions):
-        oracle(qc, search_space, positions, eq_temporary, check_temporary, output)
+        oracle(qc, search_space, positions, check_temporary, output)
         diffusion(qc, search_space, output)    
 
 
@@ -276,9 +290,11 @@ if not TEST_ORACLE: # CALCULATE
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
+            counts=execute_on_IBM(qc, 1200, show_map_info, num_s_bits)
         elif SEND_TO=="IONQ":
-            counts=execute_on_IONQ(qc, 2800)
+            counts=execute_on_IONQ(qc, 1200)
+        elif SEND_TO=="QUANTUMINSPIRE":
+            counts=execute_on_QuantumInspire(qc, 1200) 
     else:
         counts=simulate(qc, num_shots=600)
     row={}
@@ -286,12 +302,19 @@ if not TEST_ORACLE: # CALCULATE
     for each in counts:
         col_value=each[:2]
         row_value=each[2:]
+
         if row_value not in row:
             row[row_value]=0
         if col_value not in col:
             col[col_value]=0
-        row[row_value]+=counts[each]
-        col[col_value]+=counts[each]
+        # Check if it's a valid option
+        if int(row_value,2)<GRID_WIDTH:
+            row[row_value]+=counts[each]
+        if int(col_value,2)<GRID_HEIGHT:    
+            col[col_value]+=counts[each]
+
+
+    hist1 = plot_histogram(counts, sort='value_desc')
 
 
     logger.debug ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
@@ -311,9 +334,10 @@ if not TEST_ORACLE: # CALCULATE
 
 else: # TEST THE ORACLE
     logger.info("Looking for: %s" %formated_searchspace)
-    oracle(qc, search_space, positions, eq_temporary, check_temporary, output)
+    oracle(qc, search_space, positions, check_temporary, output)
     add_measurement(qc, output, "res1")
     counts=simulate(qc, num_shots=200)
     # Output should be 1 (if row and col values are correct....)
     logger.info (counts)
 
+plt.show()

@@ -8,16 +8,20 @@ BLACK = (0, 0, 0)
 WHITE = (200, 200, 200)
 GREY = (100,100,100)
 RED = (200, 50, 50)
+BLUE = (50, 50, 200)
 WINDOW_HEIGHT = 600
 WINDOW_WIDTH = 600
 FONT_SIZE = 80
 
 map = [
-    [ "XX", "11", "XX", "00"],
-    [ "00", "00", "00", "XX"],
     [ "XX", "00", "00", "00"],
-    [ "00", "00", "00", "XX"],
+    [ "XX", "00", "XX", "00"],
+    [ "XX", "XX", "00", "00"],
+    [ "00", "00", "00", "00"],
 ]
+
+NUM_BITS=1
+format_string = "{:0" + str(NUM_BITS) + "b}" # 
 
 
 def main():
@@ -98,7 +102,7 @@ def drawGrid(screen, robot_position, robot_font, small_font):
             if robot_position == (row,col):
                 
                 text_surface = robot_font.render('®', False, RED)
-                screen.blit(text_surface, (x+int(blockSize/2)-FONT_SIZE/2 + 5, y+int(blockSize/2)-FONT_SIZE/2- 10 ))
+                screen.blit(text_surface, (x+int(blockSize/2)-FONT_SIZE/2 + 10, y+int(blockSize/2)-FONT_SIZE/2- 5 ))
 
                 # |
                 pygame.draw.line(screen, GREY, (x+int(blockSize/2), 
@@ -115,7 +119,7 @@ def drawGrid(screen, robot_position, robot_font, small_font):
                     y+int(blockSize/2)), (x+int(blockSize/2)+(AMOUNT_OF_BLOCKS-col)*0.75*blockSize, y+int(blockSize/2)), width=5)
 
             # Calculate "points"
-            if math.sqrt( math.pow(row-robot_position[0],2)+math.pow(col-robot_position[1],2)) <2.2:
+            if math.sqrt( math.pow(row-robot_position[0],2)+math.pow(col-robot_position[1],2)) <2:
                 #obstacle_text = small_font.render('11', False, BLACK)
                 #screen.blit(obstacle_text, (x + 5, y+5 ))
                 if map[row][col]=="XX":
@@ -130,8 +134,8 @@ def drawGrid(screen, robot_position, robot_font, small_font):
                 row+=1  
                 distance = math.sqrt( math.pow(row-each_obstacle["row"],2)+math.pow(col-each_obstacle["col"],2))  
                 #print (col,row,distance)
-                points = int((4) / math.pow(2, distance))
-                point_map[row][col]=min(4,point_map[row][col]+points)
+                points = int(( int(math.pow(2,NUM_BITS)-1) ) / math.pow(2, distance))
+                point_map[row][col]=min(int(math.pow(2,NUM_BITS)-1),point_map[row][col]+points)
                 #for each in seen_obstacles:
 
     for each_obstacle in all_obstacles:
@@ -143,8 +147,8 @@ def drawGrid(screen, robot_position, robot_font, small_font):
                 row+=1  
                 distance = math.sqrt( math.pow(row-each_obstacle["row"],2)+math.pow(col-each_obstacle["col"],2))  
                 #print (col,row,distance)
-                points = int((4) / math.pow(2, distance))
-                global_point_map[row][col]=min(4,global_point_map[row][col]+points)  
+                points = int((  int(math.pow(2,NUM_BITS)-1)   ) / math.pow(2, distance))
+                global_point_map[row][col]=min( int(math.pow(2,NUM_BITS)-1) ,global_point_map[row][col]+points)  
                 #for each in seen_obstacles:
 
     # Draw point map
@@ -155,10 +159,10 @@ def drawGrid(screen, robot_position, robot_font, small_font):
         for y in range(0, WINDOW_HEIGHT, blockSize):     
             row+=1
             if point_map[row][col]>0:       
-                obstacle_text = small_font.render("%s" %point_map[row][col], False, BLACK)
+                obstacle_text = small_font.render("%s" %format_string.format(point_map[row][col])[:NUM_BITS], False, RED)
                 screen.blit(obstacle_text, (x + 5, y+5 ))
             if global_point_map[row][col]>0:
-                obstacle_text2 = small_font.render("%s" %global_point_map[row][col], False, RED)
+                obstacle_text2 = small_font.render("%s" %format_string.format(global_point_map[row][col])[:NUM_BITS], False, BLUE)
                 screen.blit(obstacle_text2, (x + blockSize- 20, y+5 ))                
 
 
