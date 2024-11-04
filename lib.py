@@ -62,9 +62,12 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
 
  
 
-def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
+def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
     from qiskit_ibm_runtime import QiskitRuntimeService
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+
+    GRID_WIDTH=conf["GRID_WIDTH"]
+    GRID_HEIGHT=conf["GRID_HEIGHT"]
  
     # ###
     TOKEN = os.environ["IBM_TOKEN"]
@@ -72,17 +75,23 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
     OPTIMIZATION_LEVEL=3
  
     service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN)    
-    logger.info ("Sending real JOB to IBM")
-    backend = service.least_busy(operational=True, simulator=False)
-    sampler = Sampler(backend)
-    logger.info ("... transpiling...")
-    job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
-    logger.info(f"job id: {job.job_id()}")
+    if job_id:
+        logger.info ("Using results from IBM job '%s'" %job_id)
+        job = service.job(job_id)
+        job_result = job.result()        
+    else:
+        logger.info ("Sending real JOB to IBM")
+        backend = service.least_busy(operational=True, simulator=False)
+        sampler = Sampler(backend)
+        logger.info ("... transpiling...")
+        job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
+        logger.info(f"job id: {job.job_id()}")
 
-    job_result = job.result()
+        job_result = job.result()
 
     results=job_result
     counts = results[0].data.res1.get_counts()
+    print (counts)
     col={}
     row={}
     for each in counts:
@@ -92,6 +101,9 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
             row[row_value]=0
         if col_value not in col:
             col[col_value]=0
+
+        if int(row_value,2)>=GRID_HEIGHT or int(col_value,2)>=GRID_WIDTH:
+            continue
         row[row_value]+=counts[each]
         col[col_value]+=counts[each]
 

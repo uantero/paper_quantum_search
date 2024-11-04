@@ -70,7 +70,8 @@ CONFIG = {
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IBM",
+    "SELECTED_PROVIDER": "QUANTUMINSPIRE",
+    "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
@@ -81,8 +82,9 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0"] ,
-    ["0 1"] ,
+    ["0 0 0 "] ,
+    ["0 0 0 "] ,
+    ["0 0 1 "] ,    
 
 ]
 
@@ -210,13 +212,15 @@ positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_
 logger.info("Number of qubits: %s" %(qc.num_qubits) )
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
-N=len(positions) # Total options
+#N=len(positions) # Total options
+N=math.pow(2,num_s_bits*2)
 #M=1
 M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
+num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
+#num_repetitions= int(num_repetitions*2)
 
 # Hack for IBM / IONQ....
 """
@@ -226,7 +230,6 @@ if MAKE_IT_REAL:
 """
 
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
-
 
 #for each_pos in positions:
 #    print (each_pos)
@@ -295,13 +298,14 @@ if not TEST_ORACLE: # CALCULATE
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 3200, show_map_info, num_s_bits)
+            counts=execute_on_IBM(qc, 11200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
             counts=execute_on_QuantumInspire(qc, 1200) 
     else:
         counts=simulate(qc, num_shots=600)
+
     row={}
     col={}
     for each in counts:
@@ -313,10 +317,10 @@ if not TEST_ORACLE: # CALCULATE
         if col_value not in col:
             col[col_value]=0
         # Check if it's a valid option
-        if int(row_value,2)<GRID_WIDTH:
-            row[row_value]+=counts[each]
-        if int(col_value,2)<GRID_HEIGHT:    
-            col[col_value]+=counts[each]
+        if int(row_value,2)>=GRID_HEIGHT or int(col_value,2)>=GRID_WIDTH:
+            continue
+        row[row_value]+=counts[each]
+        col[col_value]+=counts[each]
 
 
     hist1 = plot_histogram(counts, sort='value_desc')
