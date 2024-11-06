@@ -134,6 +134,27 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id=""
  
     return results
 
+
+def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
+    from qiskit_ibm_runtime import QiskitRuntimeService
+    from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+
+    import bluequbit
+
+    bq_client = bluequbit.init(os.environ["BLUEQUBIT_TOKEN"])
+
+    return {'0000': 391, '1110': 378, '0101': 320, '1010': 436, '1001': 424, '1101': 396, '0001': 377, '0111': 347, '0011': 424, '1111': 369, '0100': 368, '0010': 397, '1011': 418, '1100': 391, '1000': 430, '0110': 334}
+
+    logger.info ("Sending real JOB to BLUEQUBIT")
+    job_result = bq_client.run(qc, job_name="qiskit_job")
+
+    counts = {}
+    for each in job_result.top_128_results:
+        counts[each]=int(job_result.top_128_results[each]*num_shots)
+        
+ 
+    return counts
+
 def execute_on_IONQ(qc, num_shots=500):
     from qiskit_ionq import IonQProvider
  
@@ -215,7 +236,9 @@ def execute_on_QuantumInspire(qc, num_shots=500):
 
     logger.info ("Sending real JOB to QUANTUMINSPIRE")
 
-    QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
+    #QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
+    enable_account(os.environ["QUANTUMINSPIRE_TOKEN"])
+    QI.set_authentication()
 
     qi_backend = QI.get_backend('QX single-node simulator')  
     shot_count = 512

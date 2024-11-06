@@ -10,3 +10,5 @@ pylatexenc
 qiskit_ionq
 python-dotenv
 termcolor
+quantuminspire
+bluequbit

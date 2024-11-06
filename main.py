@@ -40,7 +40,7 @@ from termcolor import colored
 
 # our Grover libs
 from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
+from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire, execute_on_BlueQbit
 
 
 ########################################################
@@ -68,10 +68,10 @@ CONFIG = {
         "check_col": 0  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IBM",
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
+    "SELECTED_PROVIDER": "BLUEQUBIT",
     "USE_JOB_ID": "", # Used to recall results from an external service
-    "REUSE_ROW_COL_QUBITS": False, # If set to True, Row and Col patterns are the same, so Qubits are reused
+    "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
 
@@ -81,17 +81,18 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0 1 0 "] ,
-    ["0 1 1 1 "] ,
-    ["0 0 1 0 "] ,
+    ["1 0 0 0 "] ,
+    ["1 0 1 0 "] ,
+    ["1 1 0 0 "] ,
+    ["0 0 0 0 "] ,
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1", "1", "1"] #, "0"] # row ?
-inp_pattern_col=  ["1", "1", "1"] # col ?
+inp_pattern_row=  ["1", "0"] #, "0"] # row ?
+inp_pattern_col=  ["1", "0"] # col ?
 
 #####################
 
@@ -217,8 +218,8 @@ M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
-
+num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
+#num_repetitions =1
 # Hack for IBM / IONQ....
 """
 if MAKE_IT_REAL:
@@ -226,7 +227,9 @@ if MAKE_IT_REAL:
         num_repetitions=1
 """
 
+#num_repetitions=num_repetitions+2
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
+
 
 #for each_pos in positions:
 #    print (each_pos)
@@ -295,11 +298,13 @@ if not TEST_ORACLE: # CALCULATE
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 3200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
+            counts=execute_on_IBM(qc, 6200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
             counts=execute_on_QuantumInspire(qc, 1200) 
+        elif SEND_TO=="BLUEQUBIT":
+            counts=execute_on_BlueQbit(qc, 1200)             
     else:
         counts=simulate(qc, num_shots=600)
 
