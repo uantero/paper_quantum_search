@@ -49,7 +49,6 @@ from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
 """
 inp_map_string = [
     ["0 0 1 1 0 0"] ,
-    ["1 0 0 0 0 0"] ,
     ["0 0 0 0 0 0"] ,
     ["1 0 0 1 0 1"] ,    
     ["1 1 0 0 0 0"] ,        
@@ -66,13 +65,13 @@ CONFIG = {
     "TEST_ORACLE": {
         "enable": False, # Used to validate the Oracl"
         "check_row": 0, # Validate the oracle with this values (check if output=1)
-        "check_col": 0  # Validate the oracle with this values (check if output=1)
+        "check_col": 0  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "QUANTUMINSPIRE",
+    "SELECTED_PROVIDER": "IBM",
     "USE_JOB_ID": "", # Used to recall results from an external service
-    "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
+    "REUSE_ROW_COL_QUBITS": False, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
 
@@ -82,18 +81,17 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["0 0 0 "] ,
-    ["0 0 0 "] ,
-    ["0 0 1 "] ,    
-
+    ["0 0 1 0 "] ,
+    ["0 1 1 1 "] ,
+    ["0 0 1 0 "] ,
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1"]#, "0"] # row ?
-inp_pattern_col=  ["1"] # col ?
+inp_pattern_row=  ["1", "1", "1"] #, "0"] # row ?
+inp_pattern_col=  ["1", "1", "1"] # col ?
 
 #####################
 
@@ -219,8 +217,7 @@ M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
-#num_repetitions= int(num_repetitions*2)
+num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
 
 # Hack for IBM / IONQ....
 """
@@ -298,7 +295,7 @@ if not TEST_ORACLE: # CALCULATE
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 11200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
+            counts=execute_on_IBM(qc, 3200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
