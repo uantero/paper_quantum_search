@@ -143,6 +143,7 @@ def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_
 
     bq_client = bluequbit.init(os.environ["BLUEQUBIT_TOKEN"])
 
+    #return {'0110': 93, '0100': 87, '1101': 88, '0101': 90, '0010': 52, '1001': 60, '1110': 76, '0000': 92, '0111': 72, '1111': 76, '1011': 85, '0011': 59, '0001': 59, '1000': 81, '1010': 59, '1100': 71}
 
     logger.info ("Sending real JOB to BLUEQUBIT")
     job_result = bq_client.run(qc, job_name="qiskit_job")

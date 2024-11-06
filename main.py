@@ -81,18 +81,17 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["1 0 0 0 "] ,
-    ["1 0 1 0 "] ,
-    ["1 1 0 0 "] ,
-    ["0 0 0 0 "] ,
+    ["00 00 00 "] ,
+    ["10 00 11 "] ,
+    ["11 11 10 "] ,
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1", "0"] #, "0"] # row ?
-inp_pattern_col=  ["1", "0"] # col ?
+inp_pattern_row=  ["11", "10"] #, "0"] # row ?
+inp_pattern_col=  ["11", "10"] # col ?
 
 #####################
 
@@ -219,7 +218,7 @@ M= 1
 logger.info("N: %s, M: %s" %(N, M))
 
 num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
-#num_repetitions =1
+num_repetitions =4
 # Hack for IBM / IONQ....
 """
 if MAKE_IT_REAL:
