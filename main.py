@@ -5,7 +5,7 @@
 
 ## Calculated in IBM
 """
-
+ e
 
 """
  
@@ -39,7 +39,7 @@ from termcolor import colored
 
 # our Grover libs
 from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire
+from lib import execute_on_IONQ, execute_on_QuantumInspire, execute_on_Fake_IBM, execute_on_real_IBM
 
 
 ########################################################
@@ -68,8 +68,8 @@ CONFIG = {
         "check_col": 0  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE"],
-    "SELECTED_PROVIDER": "IONQ",
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "QUANTUMINSPIRE"],
+    "SELECTED_PROVIDER": "FAKEIBM",
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
@@ -285,12 +285,16 @@ if not TEST_ORACLE: # CALCULATE
 
 
     add_measurement(qc, search_space, "res1")
-
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 1200, show_map_info, num_s_bits)
+            #counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
+            counts=execute_on_real_IBM(qc, 2800, show_map_info, num_s_bits)
+        elif SEND_TO=="FAKEIBM":
+            def show_map_info(selected_row, selected_column):
+                show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+            counts=execute_on_Fake_IBM(qc, 2800, show_map_info, num_s_bits)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
