@@ -78,9 +78,11 @@ def execute_on_Fake_IBM(qc, num_shots=300, show_results=None, num_s_bits=2):
     pm = generate_preset_pass_manager(backend=aer, optimization_level=3)
     isa_qc = pm.run(qc)
     # You can use a fixed seed to get fixed results.
-    sampler = Sampler(mode=aer,options={"default_shots": 20})
+    sampler = Sampler(mode=aer,options={"default_shots": num_shots})
     result = sampler.run([isa_qc]).result()
     countsIBM = result[0].data.res1.get_counts()
+
+    logger.info("Counts: %s" %countsIBM)
 
     return countsIBM
 
@@ -107,9 +109,32 @@ def execute_on_real_IBM(qc, num_shots=500, show_results=None, num_s_bits=2):
 
     results=job_result
     countsIBM = results[0].data.res1.get_counts()
+
+    logger.info("Counts: %s" %countsIBM)
     return countsIBM
 
 
+
+
+def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
+    from qiskit_ibm_runtime import QiskitRuntimeService
+    from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+
+    import bluequbit
+
+    bq_client = bluequbit.init(os.environ["BLUEQUBIT_TOKEN"])
+
+    #return {'0110': 93, '0100': 87, '1101': 88, '0101': 90, '0010': 52, '1001': 60, '1110': 76, '0000': 92, '0111': 72, '1111': 76, '1011': 85, '0011': 59, '0001': 59, '1000': 81, '1010': 59, '1100': 71}
+
+    logger.info ("Sending real JOB to BLUEQUBIT")
+    job_result = bq_client.run(qc, job_name="qiskit_job")
+
+    counts = {}
+    for each in job_result.top_128_results:
+        counts[each]=int(job_result.top_128_results[each]*num_shots)
+        
+ 
+    return counts
 
 def execute_on_IONQ(qc, num_shots=500):
     from qiskit_ionq import IonQProvider
@@ -128,6 +153,7 @@ def execute_on_IONQ(qc, num_shots=500):
     if qc.num_qubits<26:
         job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
             "noise": {"model": "aria-1"}}
+            #"noise": {"model": "ideal"}}
         )
     else:
         job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
@@ -145,7 +171,7 @@ def execute_on_IONQ(qc, num_shots=500):
 def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
 #def checkEqual(qc, reg1, reg2, reg1_literal_value, temporary, output, additional_qubits):
     
-        
+
     # Multi check....
     used_bits=[]
     temporary_check_index=-1
@@ -191,7 +217,9 @@ def execute_on_QuantumInspire(qc, num_shots=500):
 
     logger.info ("Sending real JOB to QUANTUMINSPIRE")
 
-    QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
+    #QI.set_authentication(get_authentication(), QI_URL, project_name="Paper2024")
+    enable_account(os.environ["QUANTUMINSPIRE_TOKEN"])
+    QI.set_authentication()
 
     qi_backend = QI.get_backend('QX single-node simulator')  
     shot_count = 512
@@ -200,6 +228,8 @@ def execute_on_QuantumInspire(qc, num_shots=500):
     qi_job = qi_backend.run(circuit, shots=num_shots)
     qi_result = qi_job.result()
     result = qi_result.get_counts(circuit)
+
+    logger.info("Counts: %s" %result)
  
     return result        
 

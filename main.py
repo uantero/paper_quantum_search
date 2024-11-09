@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 import matplotlib.pyplot as plt
 import sys, os
+import datetime
 import numpy as np
 import math
 from textwrap import wrap
@@ -39,7 +40,7 @@ from termcolor import colored
 
 # our Grover libs
 from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_QuantumInspire, execute_on_Fake_IBM, execute_on_real_IBM
+from lib import execute_on_IONQ, execute_on_QuantumInspire, execute_on_Fake_IBM, execute_on_real_IBM, execute_on_BlueQbit
 
 
 ########################################################
@@ -48,7 +49,6 @@ from lib import execute_on_IONQ, execute_on_QuantumInspire, execute_on_Fake_IBM,
 """
 inp_map_string = [
     ["0 0 1 1 0 0"] ,
-    ["1 0 0 0 0 0"] ,
     ["0 0 0 0 0 0"] ,
     ["1 0 0 1 0 1"] ,    
     ["1 1 0 0 0 0"] ,        
@@ -63,13 +63,14 @@ inp_map_string = [
 
 CONFIG = {
     "TEST_ORACLE": {
-        "enable": False, # Used to validate the Oracl"
-        "check_row": 0, # Validate the oracle with this values (check if output=1)
-        "check_col": 0  # Validate the oracle with this values (check if output=1)
+        "enable": True, # Used to validate the Oracl"
+        "check_row": 1, # Validate the oracle with this values (check if output=1)
+        "check_col": 1  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "QUANTUMINSPIRE"],
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
     "SELECTED_PROVIDER": "FAKEIBM",
+    "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
 
@@ -82,15 +83,13 @@ inp_map_string = [
 
     ["0 0 0 "] ,
     ["0 1 0 "] ,
-    ["0 0 0 "] ,
-
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["1", ]#, "0"] # row ?
+inp_pattern_row=  ["1", ] #, "0"] # row ?
 inp_pattern_col=  ["1", ] # col ?
 
 #####################
@@ -124,6 +123,7 @@ GRID_HEIGHT = int(len(inp_map_string) )
 # Join inp_map_string into a single string
 inp_map_string="".join(["".join(item) for column in inp_map_string for item in column]).replace(" ","").replace("X","1")
 
+logger.info("[[ STARTING MAP SEARCH]] @%s" %datetime.datetime.now())
 
 # SHOW MAP & Output other info -------------------------
 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_column=None)
@@ -133,12 +133,13 @@ logger.info("Look for pattern in row: %s" %inp_pattern_row)
 logger.info("Look for pattern in column: %s" %inp_pattern_col)
 logger.info("BYTE SIZE: %s" %BYTE_SIZE)
 
-num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-logger.info("Num qubits in search space: %squbits (2x %squbits)" %(2*num_s_bits, num_s_bits))
+num_s_bits_row =  math.ceil(  math.log2(  GRID_HEIGHT )    )
+num_s_bits_col =  math.ceil(  math.log2(  GRID_WIDTH )    )
+logger.info("Num qubits in search space: %squbits (ROW: %s, COL: %s)" %(num_s_bits_row+num_s_bits_col, num_s_bits_row, num_s_bits_col))
 
 
 # Create required registers 
-search_space=QuantumRegister(num_s_bits + num_s_bits, "s")
+search_space=QuantumRegister(num_s_bits_row + num_s_bits_col, "s")
 map=QuantumRegister(len(inp_map_string_joined), "map")
 search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
 
@@ -203,24 +204,27 @@ sys.exit(0)
 # Create all possible combinations, and get back what has to be checked
 positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
 
-#print (positions)
+print (positions)
 
 
 logger.info("Number of qubits: %s" %(qc.num_qubits) )
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
-N=len(positions) # Total options
+#N=len(positions) # Total options
+N=math.pow(2,num_s_bits_col+num_s_bits_row)
 #M=1
 M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, round( (math.pi/4)*(math.sqrt(N / M)) ))
+num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
 
 # Hack for IBM / IONQ....
+"""
 if MAKE_IT_REAL:
     if SEND_TO in ["IBM"]:
         num_repetitions=1
+"""
 
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
@@ -285,54 +289,43 @@ if not TEST_ORACLE: # CALCULATE
 
 
     add_measurement(qc, search_space, "res1")
+
+    logger.info("CIRCUIT DEPTH: %s" %qc.depth())
+
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
             #counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
-            counts=execute_on_real_IBM(qc, 2800, show_map_info, num_s_bits)
+            counts=execute_on_real_IBM(qc, 2800, show_map_info, num_s_bits_col+num_s_bits_row)
         elif SEND_TO=="FAKEIBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_Fake_IBM(qc, 2800, show_map_info, num_s_bits)
+            counts=execute_on_Fake_IBM(qc, 300, show_map_info, num_s_bits_col+num_s_bits_row)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
             counts=execute_on_QuantumInspire(qc, 1200) 
+        elif SEND_TO=="BLUEQUBIT":
+            counts=execute_on_BlueQbit(qc, 1200)             
     else:
         counts=simulate(qc, num_shots=600)
-    row={}
-    col={}
-    for each in counts:
-        col_value=each[:2]
-        row_value=each[2:]
 
-        if row_value not in row:
-            row[row_value]=0
-        if col_value not in col:
-            col[col_value]=0
-        # Check if it's a valid option
-        if int(row_value,2)<GRID_WIDTH:
-            row[row_value]+=counts[each]
-        if int(col_value,2)<GRID_HEIGHT:    
-            col[col_value]+=counts[each]
+    logger.info ("Ordered counts: %s" %{k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)})
+    top_item = list({k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)})[0]
+    selected_col_bin=top_item[:num_s_bits_col]
+    selected_row_bin=top_item[num_s_bits_col:]
 
+    
+    
+    selected_row=str(selected_row_bin)[::-1]
+    selected_row = int(selected_row,2)    
 
-    hist1 = plot_histogram(counts, sort='value_desc')
+    selected_col=str(selected_col_bin)[::-1]
+    selected_col = int(selected_col,2)        
 
-
-    logger.debug ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
-    logger.debug ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
-
-    selected_row=list({k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
-    selected_row=str(selected_row)[::-1]
-    selected_row = int(selected_row,2)
-    selected_col=list({k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})[0]
-    selected_col=str(selected_col)[::-1]
-    selected_col = int(selected_col,2)
-
-    logger.info ("Selected ROW: %s" %selected_row)
-    logger.info ("Selected COL: %s" %selected_col)
+    logger.info ("Selected ROW: %s (%s)" %(selected_row,selected_row_bin))
+    logger.info ("Selected COL: %s (%s)" %(selected_col,selected_col_bin))
 
     show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_col)
 
