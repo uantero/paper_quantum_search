@@ -186,15 +186,19 @@ def create_map_search(inp_map_string, inp_pattern_row, row_elements, inp_pattern
             return " (%s|%s[%s|%s]<%s|%s>) " %(self.row, self.col, self.type, MAP_ITEMS, COMPARE_ITEMS, self.compare_to_str)
     
     for each_row_index in range( math.floor(len(row_elements)/2),  len(rows) -  math.floor(len(row_elements)/2-0.5)  ):    
-        #print ("ROW! %s" %each_row_index)
+        print ("ROW! %s" %each_row_index)
+        if each_row_index!=1:
+            continue
 
         this_row=rows[each_row_index]                
         for each_column_index in range( math.floor(len(col_elements)/2),  len(columns) - math.floor(len(col_elements)/2-0.5)  ):    
-            #print ("COL! %s" %each_column_index)            
+            print ("COL! %s" %each_column_index)            
 
             temp_positions=[]            
             start_col_positions = [each for each in range(-math.floor(len(row_elements)/2), math.ceil(len(row_elements)/2)) ]
             #print (start_col_positions)
+            if each_column_index!=1:
+                continue
             
             for each_row_bit in range(len(row_elements)):
                 col_position = start_col_positions.pop(0)               

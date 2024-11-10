@@ -5,7 +5,7 @@
 
 ## Calculated in IBM
 """
-
+ e
 
 """
  
@@ -40,7 +40,7 @@ from termcolor import colored
 
 # our Grover libs
 from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire, execute_on_BlueQbit
+from lib import execute_on_IONQ, execute_on_QuantumInspire, execute_on_Fake_IBM, execute_on_real_IBM, execute_on_BlueQbit
 
 
 ########################################################
@@ -67,9 +67,9 @@ CONFIG = {
         "check_pos_row": 2, # Validate the oracle with this value (check if output=1)
         "check_pos_col": 2
     },
-    "MAKE_IT_REAL": False, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
-    "SELECTED_PROVIDER": "BLUEQUBIT",
+    "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
+    "SELECTED_PROVIDER": "FAKEIBM",
     "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
@@ -83,6 +83,7 @@ inp_map_string = [
 
     ["0 0 0 "] ,
     ["0 1 0 "] ,    
+    ["0 0 0 "] ,
 ]
 
 
@@ -220,25 +221,24 @@ print (counts)
 sys.exit(0)
 """
 
-for each_pos in positions:
-    logger.info ("POS %s (%s,%s):" %(each_pos["index"], each_pos["row"],each_pos["col"]))
-    logger.debug (" ---> %s" %each_pos["checks"])
+#for each_pos in positions:
+#    logger.info ("POS %s (%s,%s):" %(each_pos["index"], each_pos["row"],each_pos["col"]))
+#    logger.debug (" ---> %s" %each_pos["checks"])
 
 #print (positions)
 
 
-logger.info("Number of qubits: %s" %(qc.num_qubits) )
+logger.info("Total number of qubits in circuit: %s" %(qc.num_qubits) )
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
 #N=len(positions) # Total options
-N=math.pow(2,num_s_bits)
-#M=1
-M= 1
+N=len(positions)
+#N=math.pow(2,num_s_bits)
+M=1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
-#num_repetitions +=3
+num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
 
 # Hack for IBM / IONQ....
 """
@@ -247,7 +247,6 @@ if MAKE_IT_REAL:
         num_repetitions=1
 """
 
-#num_repetitions=num_repetitions+2
 logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
 
@@ -320,7 +319,12 @@ if not TEST_ORACLE: # CALCULATE
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 6200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
+            #counts=execute_on_IBM(qc, 2800, show_map_info, num_s_bits)
+            counts=execute_on_real_IBM(qc, 2800)
+        elif SEND_TO=="FAKEIBM":
+            def show_map_info(selected_row, selected_column):
+                show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+            counts=execute_on_Fake_IBM(qc, 600)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
@@ -330,8 +334,17 @@ if not TEST_ORACLE: # CALCULATE
     else:
         counts=simulate(qc, num_shots=600)
 
+    temp={}
+    for key,value in counts.items():
+        if int(key[::-1], 2)<len(positions):
+            temp[key]=value 
+    counts=temp
+    # Order and filter elements outside available positions
     counts = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
     logger.info("COUNTS: %s" %counts)
+    for key,value in counts.items():
+        logger.debug("%s --> %s" %(  (int(key[::-1], 2), value  )) )
+    
     top_item = int(list(counts.keys())[0][::-1], 2)
     
 
