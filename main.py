@@ -82,8 +82,8 @@ CONFIG = {
 inp_map_string = [
 
     ["0 0 0 "] ,
-    ["0 1 0 "] ,    
-    ["0 0 0 "] ,
+    ["0 0 0 "] ,    
+    ["0 1 0 "] ,
 ]
 
 
@@ -324,7 +324,7 @@ if not TEST_ORACLE: # CALCULATE
         elif SEND_TO=="FAKEIBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_Fake_IBM(qc, 600)
+            counts=execute_on_Fake_IBM(qc, 800)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
