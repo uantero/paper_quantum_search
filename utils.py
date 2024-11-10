@@ -49,6 +49,77 @@ def show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row=None, selected_
 
 
 
+# Create all possible combinations, and get back what has to be checked
+
+def create_positions(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT):
+    positions = []
+    class Element:
+        def __init__(self, row, col, element, type, compare_to, compare_to_str):
+            self.row=row
+            self.col=col
+            self.element=element
+            self.type=type
+            self.compare_to=compare_to
+            self.compare_to_str=compare_to_str
+        def __repr__(self):
+            MAP_ITEMS=["%s%s" %(item._register.name, item._index) for item in self.element]
+            COMPARE_ITEMS=["%s%s" %(item._register.name, item._index) for item in self.compare_to]
+            return " (%s|%s[%s|%s]<%s|%s>) " %(self.row, self.col, self.type, MAP_ITEMS, COMPARE_ITEMS, self.compare_to_str)
+
+    index=-1
+    for base_row_index in range(GRID_HEIGHT-len(inp_pattern_col)+1):
+        for base_col_index in range(GRID_WIDTH-len(inp_pattern_row)+1):        
+            index+=1
+            # Center the search pattern
+            center_row_index = base_row_index+math.floor( len(inp_pattern_col)/2 )
+            center_col_index = base_col_index+math.floor( len(inp_pattern_row)/2 )
+
+            #print ("ROW: %s, COL: %s" %(center_row_index, center_col_index))
+            position={ 
+                    "index": index, 
+                    "row":  center_row_index , 
+                    "col": center_col_index
+                }            
+            checks=[]
+            
+            for row_index, each_row_item in enumerate(inp_pattern_row):
+                row = center_row_index-math.floor( len(inp_pattern_col)/2 )+row_index
+                #print ("    row: %s, col: %s" %(row, center_col_index))
+                map_index=row*GRID_WIDTH + center_col_index
+                check_element=Element(
+                        row=center_row_index, 
+                        col=center_col_index, 
+                        element=[map[map_index]],
+                        type="col",
+                        compare_to=[search_col[row_index]],
+                        compare_to_str=inp_pattern_col[row_index]
+                        )                
+                checks.append(check_element)
+            
+            # If inp_patter_col is just a single qubit, it should be equal to inp_pattern_row
+            if len(inp_pattern_col)>1:
+                for col_index, each_col_item in enumerate(inp_pattern_col):
+                    col = center_col_index-math.floor( len(inp_pattern_row)/2 )+col_index
+                    map_index=center_row_index*GRID_WIDTH + col
+                    #print ("    row: %s, col: %s" %(center_row_index, col))
+                    check_element=Element(
+                            row=center_row_index, 
+                            col=center_col_index, 
+                            element=[map[map_index]],
+                            type="row",
+                            compare_to=[search_row[col_index]],
+                            compare_to_str=inp_pattern_row[col_index]
+                            )                
+                    checks.append(check_element)
+            
+            position["checks"]=checks
+            positions.append(position)
+
+
+    return positions
+                
+
+
 
 ## Create search map
 

@@ -189,8 +189,9 @@ def execute_on_IONQ(qc, num_shots=500):
 
 def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
 #def checkEqual(qc, reg1, reg2, reg1_literal_value, temporary, output, additional_qubits):
-    
         
+    #print ("Checking equal...")
+    #print (additional_qubits)
     # Multi check....
     used_bits=[]
     temporary_check_index=-1
@@ -198,6 +199,10 @@ def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
         reg1 = each_check["reg1"]
         reg2 = each_check["reg2"]
         reg2str = each_check["reg2str"]
+
+        #print ("REG1: %s" %reg1)
+        #print ("REG2: %s" %reg2)
+        #print ("reg2str: %s" %reg2str)
 
         # Check qubit by qubit
         for bit_index in range(len(reg1)):

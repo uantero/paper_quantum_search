@@ -34,7 +34,7 @@ from qiskit.circuit.library import MCXGate
 from qiskit.visualization import plot_histogram
 
 # Import our libraries...
-from utils import show_map, create_map_search
+from utils import show_map, create_map_search, create_positions
 from logs import logger
 from termcolor import colored
 
@@ -64,10 +64,10 @@ inp_map_string = [
 CONFIG = {
     "TEST_ORACLE": {
         "enable": False, # Used to validate the Oracl"
-        "check_row": 0, # Validate the oracle with this values (check if output=1)
-        "check_col": 0  # Validate the oracle with this values (check if output=1)
+        "check_pos_row": 2, # Validate the oracle with this value (check if output=1)
+        "check_pos_col": 2
     },
-    "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
+    "MAKE_IT_REAL": False, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
     "SELECTED_PROVIDER": "BLUEQUBIT",
     "USE_JOB_ID": "", # Used to recall results from an external service
@@ -81,17 +81,17 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["00 00 00 "] ,
-    ["10 00 11 "] ,
-    ["11 11 10 "] ,
+    ["0 0 0 "] ,
+    ["0 1 0 "] ,    
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["11", "10"] #, "0"] # row ?
-inp_pattern_col=  ["11", "10"] # col ?
+inp_pattern_row=  ["1",   ] #, "0"] # row ?
+inp_pattern_col=  ["1",   ] # col ?
+
 
 #####################
 
@@ -134,24 +134,39 @@ logger.info("Look for pattern in row: %s" %inp_pattern_row)
 logger.info("Look for pattern in column: %s" %inp_pattern_col)
 logger.info("BYTE SIZE: %s" %BYTE_SIZE)
 
-num_s_bits =  math.ceil(  math.log2(  GRID_WIDTH )    )
-logger.info("Num qubits in search space: %squbits (2x %squbits)" %(2*num_s_bits, num_s_bits))
-
-
-# Create required registers 
-search_space=QuantumRegister(num_s_bits + num_s_bits, "s")
-map=QuantumRegister(len(inp_map_string_joined), "map")
 search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
 
 if not CONFIG["REUSE_ROW_COL_QUBITS"]:
     search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")    
 else:
     search_col=search_row
-    
 
+map=QuantumRegister(len(inp_map_string_joined), "map")
+
+# This is important... this creates the list of all available/allowed positions (and required checks)
+positions=create_positions(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
+# Find the pos of the requested row & col (for checkint the oracle)
+CONFIG["TEST_ORACLE"]["check_pos"]= -1
+if TEST_ORACLE:
+    for each_position in positions:
+        if each_position["row"]==CONFIG["TEST_ORACLE"]["check_pos_row"] and each_position["col"]==CONFIG["TEST_ORACLE"]["check_pos_col"]:
+            logger.debug("Looking for pos: %s" %each_position["index"])
+            CONFIG["TEST_ORACLE"]["check_pos"]=each_position["index"]
+
+logger.info("Allowed positions: %s" %len(positions))
+
+# Create required registers 
+# Search space size is equal to the length of allowed positions
+num_s_bits =  math.ceil(  math.log2(  len(positions) )    )
+logger.info("Num qubits in search space: %squbits " %(num_s_bits))
+
+search_space=QuantumRegister( num_s_bits , "s")
+
+# Has to store a qubit for each search_row and search_col qubit
 check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
 output=QuantumRegister(1, "output")
 
+# Output qubit
 out_search=ClassicalRegister(len(search_space),"out_search")
 output_c=ClassicalRegister(len(output),"output_oracle")
 
@@ -168,10 +183,10 @@ else:
 # -----------
 # Used for checking the ORACLE (if oracle testing is enabled)
 #SEARCH SPACE:
-desired_row=CONFIG["TEST_ORACLE"]["check_row"]
-desired_col=CONFIG["TEST_ORACLE"]["check_col"]
-format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
-formated_searchspace = "%s%s" %(format_string.format(desired_row), format_string.format(desired_col))
+desired_pos=CONFIG["TEST_ORACLE"]["check_pos"]
+
+format_string = "{:0" + str(int(len(search_space))) + "b}" # /2 because we have here row and col    
+formated_searchspace = "%s" %(format_string.format(desired_pos))
 
 set_inputs(qc, inp_map_string_joined, map )
 
@@ -179,7 +194,11 @@ set_inputs(qc, inp_map_string_joined, map )
 if not TEST_ORACLE:
     initialize_H(qc, search_space)
 else:
-    set_inputs(qc, formated_searchspace, search_space)
+    try:
+        set_inputs(qc, formated_searchspace, search_space)
+    except:
+        logger.error("There's an error with the searchspace")
+        sys.exit(1)
 
 # Set patterns to search for 
 set_inputs(qc, inp_pattern_row_joined, search_row)
@@ -201,8 +220,9 @@ print (counts)
 sys.exit(0)
 """
 
-# Create all possible combinations, and get back what has to be checked
-positions = create_map_search(map, search_row, inp_pattern_row, search_col, inp_pattern_col, BYTE_SIZE, GRID_WIDTH, GRID_HEIGHT)
+for each_pos in positions:
+    logger.info ("POS %s (%s,%s):" %(each_pos["index"], each_pos["row"],each_pos["col"]))
+    logger.debug (" ---> %s" %each_pos["checks"])
 
 #print (positions)
 
@@ -211,14 +231,15 @@ logger.info("Number of qubits: %s" %(qc.num_qubits) )
 logger.info("Map has %s possible options (N=%s)" %(len(positions), len(positions)))
 
 #N=len(positions) # Total options
-N=math.pow(2,num_s_bits*2)
+N=math.pow(2,num_s_bits)
 #M=1
 M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
-num_repetitions =4
+num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
+#num_repetitions +=3
+
 # Hack for IBM / IONQ....
 """
 if MAKE_IT_REAL:
@@ -238,23 +259,25 @@ logger.info("Num. repetitions (Pi/4*sqrt(N/M)): %s" %num_repetitions)
 
 # The ORACLE !
 def oracle(qc, search_space, positions, check_temporary, output):
-    format_string = "{:0" + str(int(len(search_space)/2)) + "b}" # /2 because we have here row and col    
+    format_string = "{:0" + str(int(len(search_space))) + "b}" # /2 because we have here row and col    
     
     for each_position in positions:
         check_index=-1
         check_list = []
         flipped_s = None
-        for each_check in each_position:
+        pos_in_binary = format_string.format(each_position["index"])
+
+        #print ("POS IN BINARY: %s" %pos_in_binary)
+
+        for each_check in each_position["checks"]:
             check_index +=1
             row = each_check.row
             col = each_check.col
             map_element = each_check.element
             compare_to_register = each_check.compare_to
             compare_to_register_str = each_check.compare_to_str
-
-            row_in_binary = format_string.format(row)
-            col_in_binary = format_string.format(col)
-            binary_searchspace="%s%s" %(row_in_binary, col_in_binary)
+            
+            binary_searchspace="%s" %(pos_in_binary)
             
             # Flip search_space
             if flipped_s is None:
@@ -307,35 +330,18 @@ if not TEST_ORACLE: # CALCULATE
     else:
         counts=simulate(qc, num_shots=600)
 
-    row={}
-    col={}
-    for each in counts:
-        col_value=each[:int(len(each)/2)]
-        row_value=each[int(len(each)/2):]
+    counts = {k: v for k, v in sorted(counts.items(), key=lambda item: item[1], reverse=True)}
+    logger.info("COUNTS: %s" %counts)
+    top_item = int(list(counts.keys())[0][::-1], 2)
+    
 
-        if row_value not in row:
-            row[row_value]=0
-        if col_value not in col:
-            col[col_value]=0
-        # Check if it's a valid option
-        if int(row_value,2)>=GRID_HEIGHT or int(col_value,2)>=GRID_WIDTH:
-            continue
-        row[row_value]+=counts[each]
-        col[col_value]+=counts[each]
-
-
-    hist1 = plot_histogram(counts, sort='value_desc')
-
-
-    logger.debug ("ROWS: %s" %{k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)})
-    logger.debug ("COLS: %s" %{k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})
-
-    selected_row=list({k: v for k, v in sorted(row.items(), key=lambda item: item[1], reverse=True)}.keys())[0]
-    selected_row=str(selected_row)[::-1]
-    selected_row = int(selected_row,2)
-    selected_col=list({k: v for k, v in sorted(col.items(), key=lambda item: item[1], reverse=True)})[0]
-    selected_col=str(selected_col)[::-1]
-    selected_col = int(selected_col,2)
+    # Let's find that in our positions...
+    selected_row=-1
+    selected_col=-1
+    for each_pos in positions:
+        if str(each_pos["index"])==str(top_item):
+            selected_row=each_pos["row"]
+            selected_col=each_pos["col"]
 
     logger.info ("Selected ROW: %s" %selected_row)
     logger.info ("Selected COL: %s" %selected_col)
