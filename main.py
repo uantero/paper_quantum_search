@@ -5,7 +5,7 @@
 
 ## Calculated in IBM
 """
-
+ e
 
 """
  
@@ -40,7 +40,8 @@ from termcolor import colored
 
 # our Grover libs
 from lib import simulate, checkEqual, initialize_H, XNOR, XOR, toffoli_general, get_qubit_index_list, add_measurement, diffusion, set_inputs
-from lib import execute_on_IONQ, execute_on_IBM, execute_on_QuantumInspire, execute_on_BlueQbit
+
+from lib import execute_on_IONQ, execute_on_real_IBM, execute_on_Fake_IBM, execute_on_QuantumInspire, execute_on_BlueQbit
 
 
 ########################################################
@@ -68,8 +69,8 @@ CONFIG = {
         "check_col": 0  # Validate the oracle with this values (check if output=1)
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
-    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
-    "SELECTED_PROVIDER": "BLUEQUBIT",
+    "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "QUANTUMINSPIRE", "BLUEQUBIT"],
+    "SELECTED_PROVIDER": "FAKEIBM",
     "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": True, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }
@@ -81,17 +82,17 @@ CONFIG = {
 # THE MAP
 inp_map_string = [
 
-    ["00 00 00 "] ,
-    ["10 00 11 "] ,
-    ["11 11 10 "] ,
+    ["0 0 0  "] ,
+    ["0 0 0  "] ,
+    ["0 0 1  "] ,    
 ]
 
 
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2 
-inp_pattern_row=  ["11", "10"] #, "0"] # row ?
-inp_pattern_col=  ["11", "10"] # col ?
+inp_pattern_row=  ["1", ] #, "0"] # row ?
+inp_pattern_col=  ["1", ] # col ?
 
 #####################
 
@@ -145,11 +146,12 @@ search_row=QuantumRegister(len(inp_pattern_row_joined), "search_row")
 
 if not CONFIG["REUSE_ROW_COL_QUBITS"]:
     search_col=QuantumRegister(len(inp_pattern_col_joined), "search_col")    
+    check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
 else:
     search_col=search_row
+    check_temporary=QuantumRegister( (len(search_row) )  , "check_temporary")
     
 
-check_temporary=QuantumRegister( (len(search_row) + len(search_col))  , "check_temporary")
 output=QuantumRegister(1, "output")
 
 out_search=ClassicalRegister(len(search_space),"out_search")
@@ -217,8 +219,9 @@ M= 1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.floor( (math.pi/4)*(math.sqrt(N / M)) ))
-num_repetitions =4
+num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M)) ))
+#num_repetitions = 1
+
 # Hack for IBM / IONQ....
 """
 if MAKE_IT_REAL:
@@ -291,13 +294,18 @@ if not TEST_ORACLE: # CALCULATE
 
     add_measurement(qc, search_space, "res1")
 
+
     logger.info("CIRCUIT DEPTH: %s" %qc.depth())
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
             def show_map_info(selected_row, selected_column):
                 show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
-            counts=execute_on_IBM(qc, 6200, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
+            counts=execute_on_real_IBM(qc, 2800, show_map_info, num_s_bits, CONFIG["USE_JOB_ID"],{"GRID_WIDTH": GRID_WIDTH, "GRID_HEIGHT": GRID_HEIGHT})
+        elif SEND_TO=="FAKEIBM":
+            def show_map_info(selected_row, selected_column):
+                show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_column)
+            counts=execute_on_Fake_IBM(qc, 2800, show_map_info, num_s_bits)
         elif SEND_TO=="IONQ":
             counts=execute_on_IONQ(qc, 1200)
         elif SEND_TO=="QUANTUMINSPIRE":
@@ -350,4 +358,5 @@ else: # TEST THE ORACLE
     # Output should be 1 (if row and col values are correct....)
     logger.info (counts)
 
+#qc.draw("mpl")
 plt.show()

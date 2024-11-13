@@ -7,6 +7,7 @@ import os, sys
 from logs import logger
 from dotenv import load_dotenv
 from termcolor import colored
+from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler 
 
 
 def initialize_H(qc, qubits):
@@ -62,7 +63,7 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
 
  
 
-def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
+def execute_on_real_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
     from qiskit_ibm_runtime import QiskitRuntimeService
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
 
@@ -73,9 +74,10 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id=""
     TOKEN = os.environ["IBM_TOKEN"]
  
     OPTIMIZATION_LEVEL=3
- 
+
     service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN)    
-    if job_id:
+
+    if job_id: # Reuse job ID?
         logger.info ("Using results from IBM job '%s'" %job_id)
         job = service.job(job_id)
         job_result = job.result()        
@@ -86,7 +88,7 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id=""
         logger.info ("... transpiling...")
         job = sampler.run([transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)], shots=num_shots)
         logger.info(f"job id: {job.job_id()}")
-
+        print(f"job id: {job.job_id()}")
         job_result = job.result()
 
     results=job_result
@@ -120,8 +122,6 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id=""
 
     print ("Selected ROW: %s" %selected_row)
     print ("Selected COL: %s" %selected_col)
-
-
     
 
     if show_results:
@@ -133,6 +133,7 @@ def execute_on_IBM(qc, num_shots=500, show_results=None, num_s_bits=2, job_id=""
 
  
     return results
+
 
 
 def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_id="", conf={}):
@@ -154,6 +155,29 @@ def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_
         
  
     return counts
+
+def execute_on_Fake_IBM(qc, num_shots=300, show_results=None, num_s_bits=2):     
+    from qiskit_aer import AerSimulator
+    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+    # ###
+    TOKEN = os.environ["IBM_TOKEN"]    
+    OPTIMIZATION_LEVEL=3  # cuanto mayor es el nivel de optimización mas tarda en hacer la transpilacion
+    instance= "ibm-q/open/main"
+    service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN, instance=instance)    
+    real_backend = service.least_busy(operational=True, simulator=False)
+    aer = AerSimulator.from_backend(real_backend)
+    logger.info ("Sending JOB to a Fake IBM backend")
+    logger.info ("Simulated backend: %s" %(real_backend.name))
+    # Mandamos a un backend simulado pero con el mismo comportamiento y ruido que el backend real
+    pm = generate_preset_pass_manager(backend=aer, optimization_level=3)
+    isa_qc = pm.run(qc)
+    # You can use a fixed seed to get fixed results.
+    sampler = Sampler(mode=aer,options={"default_shots": num_shots})
+    result = sampler.run([isa_qc]).result()    
+    countsIBM = result[0].data.res1.get_counts()
+
+    return countsIBM
+    
 
 def execute_on_IONQ(qc, num_shots=500):
     from qiskit_ionq import IonQProvider
@@ -257,5 +281,4 @@ def simulate(qc, num_shots=300):
     backend = Aer.get_backend('qasm_simulator')
     result = backend.run(transpile(qc, backend), shots=num_shots).result()
     counts = result.get_counts()
-
     return counts
