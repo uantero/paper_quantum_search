@@ -34,7 +34,7 @@ CONFIG = {
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "SIMULATE", "BLUEQUBIT"],
-    "SELECTED_PROVIDER": "IBM",
+    "SELECTED_PROVIDER": "BLUEQUBIT",
     "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": inp_pattern_row==inp_pattern_col, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }    

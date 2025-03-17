@@ -213,8 +213,8 @@ M=1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-#num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
-num_repetitions = max(1, math.ceil( (math.sqrt(N / M))  ))
+num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
+
 
 # Hack for IBM / IONQ....
 """
@@ -294,18 +294,16 @@ if not TEST_ORACLE: # CALCULATE
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            counts, backend=execute_on_real_IBM(qc, 2800)
+            counts, backend=execute_on_real_IBM(qc, 1200)
         elif SEND_TO=="SIMULATE":
             counts, backend=simulate(qc, 800)
         elif SEND_TO=="FAKEIBM":
             counts, backend=execute_on_Fake_IBM(qc, 800)            
             #counts={'00': 470, '01': 458, '11': 441, '10': 431}
         elif SEND_TO=="IONQ":
-            counts, backend=execute_on_IONQ(qc, 1200)
-        elif SEND_TO=="QUANTUMINSPIRE":
-            counts, backend=execute_on_QuantumInspire(qc, 1200) 
+            counts, backend=execute_on_IONQ(qc, 800)
         elif SEND_TO=="BLUEQUBIT":
-            counts, backend=execute_on_BlueQbit(qc, 1200)             
+            counts, backend=execute_on_BlueQbit(qc, 800)             
     else:
         counts, backend=simulate(qc, num_shots=600)
 

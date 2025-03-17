@@ -38,7 +38,7 @@ python main.py
 
 ### Internal configuration
 
-In the file 'main.py', there are some variables that can be edited:
+In the file 'conf.py', there are some variables that can be edited:
 
   
 
