@@ -213,7 +213,9 @@ M=1
 
 logger.info("N: %s, M: %s" %(N, M))
 
-num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
+#num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
+
+num_repetitions = math.ceil(  (math.pi/4)*(math.sqrt(N / M))  )
 
 
 # Hack for IBM / IONQ....
@@ -294,7 +296,7 @@ if not TEST_ORACLE: # CALCULATE
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            counts, backend=execute_on_real_IBM(qc, 1200)
+            counts, backend=execute_on_real_IBM(qc, 7800)
         elif SEND_TO=="SIMULATE":
             counts, backend=simulate(qc, 800)
         elif SEND_TO=="FAKEIBM":
