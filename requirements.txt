@@ -1,4 +1,4 @@
-qiskit==1.2.1
+qiskit==1.4.1
 qiskit-ibm-runtime==0.31.0
 qiskit-aer==0.15.1
 numpy<2
@@ -10,5 +10,5 @@ pylatexenc
 qiskit_ionq
 python-dotenv
 termcolor
-quantuminspire
+quantuminspire==3.2.0
 bluequbit
