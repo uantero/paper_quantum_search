@@ -18,20 +18,15 @@ inp_map_string = [
 '''
 
 inp_map_string = [
-    ["0 0 0 0 0 0 0 0 "],
-    ["0 0 0 0 0 0 0 0 "],
-    ["0 0 0 0 0 0 0 0 "],    
-    ["0 0 0 0 0 0 0 0 "],
-    ["0 0 0 0 0 0 0 0 "],
-    ["0 0 0 0 0 1 0 0 "],
-    ["0 0 0 0 0 0 0 0 "],
-    ["0 0 0 0 0 0 0 0 "],                
+    ["0 0 0   "],
+    ["0 0 0   "],
+    ["0 1 0   "],    
 ]
 
 CONFIG = {
     "TEST_ORACLE": {
         "enable": False, # Used to validate the Oracl"
-        "check_pos_row": 0, # Validate the oracle with this value (check if output=1)
+        "check_pos_row": 2, # Validate the oracle with this value (check if output=1)
         "check_pos_col": 1
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)

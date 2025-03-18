@@ -215,8 +215,11 @@ logger.info("N: %s, M: %s" %(N, M))
 
 #num_repetitions = max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
 
-num_repetitions = math.ceil(  (math.pi/4)*(math.sqrt(N / M))  )
+#num_repetitions = 1 + max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
 
+#num_repetitions = 2 + math.ceil( (math.pi/4)*(math.sqrt(N / M))  )    
+
+num_repetitions = 2+math.ceil( (math.pi/4)*(math.sqrt(N / M))  )    
 
 # Hack for IBM / IONQ....
 """
@@ -284,7 +287,6 @@ def oracle(qc, search_space, positions, check_temporary, output):
 # Should we test the Oracle? Or calculate the circuit?
 backend=None
 if not TEST_ORACLE: # CALCULATE
-    #for each in range(num_repetitions):
     for each in range(num_repetitions):
         oracle(qc, search_space, positions, check_temporary, output)
         diffusion(qc, search_space, output)    
@@ -296,7 +298,7 @@ if not TEST_ORACLE: # CALCULATE
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            counts, backend=execute_on_real_IBM(qc, 7800)
+            counts, backend=execute_on_real_IBM(qc) #, 1000)
         elif SEND_TO=="SIMULATE":
             counts, backend=simulate(qc, 800)
         elif SEND_TO=="FAKEIBM":
@@ -338,6 +340,10 @@ if not TEST_ORACLE: # CALCULATE
     logger.info ("Selected COL: %s" %selected_col)
 
     show_map(inp_map_string, GRID_WIDTH, BYTE_SIZE, selected_row, selected_col)
+    
+    #qc.draw("mpl")
+    plot_histogram(counts)
+    plt.show()
 
 else: # TEST THE ORACLE
     logger.info("Looking for: %s" %formated_searchspace)
@@ -347,9 +353,6 @@ else: # TEST THE ORACLE
     # Output should be 1 (if row and col values are correct....)
     logger.info (counts)
 
-#qc.draw("mpl")
-plot_histogram(counts)
-plt.show()
 
 
 ## COMPUTE ERRORS!

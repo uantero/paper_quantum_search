@@ -90,7 +90,7 @@ def execute_on_Fake_IBM(qc, num_shots=300):
 
     return countsIBM, real_backend
 
-def execute_on_real_IBM(qc, num_shots=500):     
+def execute_on_real_IBM(qc, num_shots=1000):     
     
     TOKEN = os.environ["IBM_TOKEN"]
     OPTIMIZATION_LEVEL=3  # the higher, the longer it will take to transpile
@@ -101,10 +101,9 @@ def execute_on_real_IBM(qc, num_shots=500):
     #return {'01': 685, '10': 739, '11': 684, '00': 692}, backend
 
     logger.info(backend)
-    sampler = Sampler(mode=backend, options={"default_shots": num_shots})
+    sampler = Sampler(mode=backend)
+    #sampler.options.default_shots = num_shots
     logger.info ("... transpiling...")
-
-    
 
 
     from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
