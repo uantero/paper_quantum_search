@@ -18,8 +18,8 @@ inp_map_string = [
 '''
 
 inp_map_string = [
-    ["0 0 0 "],
-    ["0 0 1 "],
+    ["0 0 0  "] ,
+    ["0 0 1  "] ,
 ]
 
 CONFIG = {

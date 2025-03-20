@@ -302,9 +302,10 @@ if not TEST_ORACLE: # CALCULATE
 
 
     add_measurement(qc, search_space, "res1")
-    
+
     logger.info("CIRCUIT SIZE: %s" %qc.size())
     logger.info("CIRCUIT DEPTH: %s" %qc.depth())
+    
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":

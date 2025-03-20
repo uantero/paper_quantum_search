@@ -236,7 +236,6 @@ def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
     #qc.mcx(used_bits + list(additional_qubits), output[0])    
     
 
-
     # Uncompute
     temporary_check_index=-1
     for each_check in check_list:
