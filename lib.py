@@ -51,25 +51,12 @@ def add_measurement(qc, what, name):
     qc.compose(meas, inplace=True, qubits=what)    
  
 def diffusion(qc: QuantumCircuit, search_space, output_qubit):
-    cccz = MCMT('z',len(search_space),len(output_qubit))
-    """Apply a diffusion circuit to the register 's' in qc"""
+    """Apply a diffusion circuit to qc"""
     
-
-    """
-    qc.h(search_space)
-    qc.x(search_space)
- 
-    qc.mcx(search_space, output_qubit)
-    qc.z(output_qubit)
- 
-    qc.x(search_space)
-    qc.h(search_space)
-    
-    """
     qc.h(search_space)
     qc.x(search_space)
 
-
+    # Toffoli
     MCZGate = ZGate().control(len(search_space))
     qc.append(MCZGate, search_space[0:]+[output_qubit])
     
@@ -158,7 +145,7 @@ def execute_on_BlueQbit(qc, num_shots=500, show_results=None, num_s_bits=2, job_
 
     bq_client = bluequbit.init(os.environ["BLUEQUBIT_TOKEN"])
 
-    #return {'0110': 93, '0100': 87, '1101': 88, '0101': 90, '0010': 52, '1001': 60, '1110': 76, '0000': 92, '0111': 72, '1111': 76, '1011': 85, '0011': 59, '0001': 59, '1000': 81, '1010': 59, '1100': 71}
+    #return  {'0101': 720, '0000': 5, '0001': 5, '0010': 5, '0100': 5, '0110': 5, '1000': 5, '1001': 5, '1010': 5, '1100': 5, '1101': 5, '1110': 5}, bq_client
 
     logger.info ("Sending real JOB to BLUEQUBIT")
     job_result = bq_client.run(qc, job_name="qiskit_job")

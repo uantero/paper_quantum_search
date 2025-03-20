@@ -88,7 +88,6 @@ inp_pattern_col_joined = "".join(inp_pattern_col)
 BYTE_SIZE = len(inp_pattern_row[0]) # 1 / 2 / ... bits ?
 
 TEST_ORACLE = CONFIG["TEST_ORACLE"]["enable"]
-MAKE_IT_REAL = CONFIG["MAKE_IT_REAL"]
 SEND_TO = CONFIG["SELECTED_PROVIDER"]
 
 
@@ -307,20 +306,17 @@ if not TEST_ORACLE: # CALCULATE
     logger.info("CIRCUIT DEPTH: %s" %qc.depth())
     
 
-    if MAKE_IT_REAL:
-        if SEND_TO=="IBM":
-            counts, backend=execute_on_real_IBM(qc, 4096)
-        elif SEND_TO=="SIMULATE":
-            counts, backend=simulate(qc, 800)
-        elif SEND_TO=="FAKEIBM":
-            counts, backend=execute_on_Fake_IBM(qc, 3000)            
-            #counts={'00': 470, '01': 458, '11': 441, '10': 431}
-        elif SEND_TO=="IONQ":
-            counts, backend=execute_on_IONQ(qc, 800)
-        elif SEND_TO=="BLUEQUBIT":
-            counts, backend=execute_on_BlueQbit(qc, 800)             
-    else:
-        counts, backend=simulate(qc, num_shots=600)
+    if SEND_TO=="IBM":
+        counts, backend=execute_on_real_IBM(qc, 4096)
+    elif SEND_TO=="SIMULATE":
+        counts, backend=simulate(qc, 800)
+    elif SEND_TO=="FAKEIBM":
+        counts, backend=execute_on_Fake_IBM(qc, 3000)            
+        #counts={'00': 470, '01': 458, '11': 441, '10': 431}
+    elif SEND_TO=="IONQ":
+        counts, backend=execute_on_IONQ(qc, 800)
+    elif SEND_TO=="BLUEQUBIT":
+        counts, backend=execute_on_BlueQbit(qc, 800)             
 
     temp={}
     for key,value in counts.items():
