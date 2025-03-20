@@ -122,6 +122,7 @@ def drawGrid(screen, robot_position, robot_font, small_font):
                 all_obstacles.append({"col": col, "row": row, "x": x, "y": y})
 
             # Draw robot
+            """
             if robot_position == (row,col):
                 
                 text_surface = robot_font.render('®', False, RED)
@@ -140,7 +141,7 @@ def drawGrid(screen, robot_position, robot_font, small_font):
 
                 pygame.draw.line(screen, GREY, (x+int(blockSize/2+FONT_SIZE/2), 
                     y+int(blockSize/2)), (x+int(blockSize/2)+(AMOUNT_OF_BLOCKS-col)*0.75*blockSize, y+int(blockSize/2)), width=5)
-
+            """
             # Calculate "points"
             if math.sqrt( math.pow(row-robot_position[0],2)+math.pow(col-robot_position[1],2)) < DETECTION_DISTANCE:
                 #obstacle_text = small_font.render('11', False, BLACK)

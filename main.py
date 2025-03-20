@@ -149,9 +149,9 @@ output_c=ClassicalRegister(len(output),"output_oracle")
 #qc = QuantumCircuit(search_space, map, search_row, search_col, eq_temporary, check_temporary, ancilla, output)
 
 if CONFIG["REUSE_ROW_COL_QUBITS"]:
-    qc = QuantumCircuit(search_space, map, search_row, check_temporary, output)    
+    qc = QuantumCircuit(search_space, output, map, search_row, check_temporary)    
 else:
-    qc = QuantumCircuit(search_space, map, search_row, search_col, check_temporary, output)
+    qc = QuantumCircuit(search_space, output, map, search_row, search_col, check_temporary)
 
 #print (qc.num_qubits)
 
@@ -169,6 +169,8 @@ set_inputs(qc, inp_map_string_joined, map )
 # Oracle testing enabled?
 if not TEST_ORACLE:
     initialize_H(qc, search_space)
+    qc.x(output)
+    
 else:
     try:
         set_inputs(qc, formated_searchspace, search_space)
@@ -217,9 +219,13 @@ logger.info("N: %s, M: %s" %(N, M))
 
 #num_repetitions = 1 + max(1, math.ceil( (math.pi/4)*(math.sqrt(N / M))  ))
 
-#num_repetitions = 2 + math.ceil( (math.pi/4)*(math.sqrt(N / M))  )    
+#num_repetitions =  math.ceil( (math.pi/4)*(math.sqrt(N / M))  )    
 
-num_repetitions = 2+math.ceil( (math.pi/4)*(math.sqrt(N / M))  )    
+#num_repetitions = math.ceil((math.pi/4) * math.sqrt(2 ** (num_s_bits - 1))) 
+
+#num_repetitions = 2+math.ceil(math.pi/(4* math.asin(math.sqrt(1/(N/M)))))
+
+num_repetitions = math.ceil(math.pi/(4* math.asin(math.sqrt(1/(N/M)))))
 
 # Hack for IBM / IONQ....
 """
@@ -278,6 +284,9 @@ def oracle(qc, search_space, positions, check_temporary, output):
         # ---------
         # Perform search
         checkEqual(qc, check_list, check_temporary, output, search_space)        
+
+        # Repeat for restoring state to check_temporary
+        checkEqual(qc, check_list, check_temporary, None, search_space)        
                 
         # Restore search_space
         if flipped_s:
@@ -293,16 +302,17 @@ if not TEST_ORACLE: # CALCULATE
 
 
     add_measurement(qc, search_space, "res1")
-
+    
+    logger.info("CIRCUIT SIZE: %s" %qc.size())
     logger.info("CIRCUIT DEPTH: %s" %qc.depth())
 
     if MAKE_IT_REAL:
         if SEND_TO=="IBM":
-            counts, backend=execute_on_real_IBM(qc) #, 1000)
+            counts, backend=execute_on_real_IBM(qc, 4096)
         elif SEND_TO=="SIMULATE":
             counts, backend=simulate(qc, 800)
         elif SEND_TO=="FAKEIBM":
-            counts, backend=execute_on_Fake_IBM(qc, 800)            
+            counts, backend=execute_on_Fake_IBM(qc, 3000)            
             #counts={'00': 470, '01': 458, '11': 441, '10': 431}
         elif SEND_TO=="IONQ":
             counts, backend=execute_on_IONQ(qc, 800)

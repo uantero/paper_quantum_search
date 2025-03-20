@@ -1,5 +1,5 @@
 # importing Qiskit
-from qiskit import transpile, transpile
+from qiskit import transpile, assemble
 from qiskit_aer import Aer
 from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister
 from qiskit.circuit.library import MCXGate
@@ -7,7 +7,8 @@ import os, sys
 from logs import logger
 from dotenv import load_dotenv
 from termcolor import colored
-from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler 
+from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+from qiskit.circuit.library import MCMT, ZGate, XGate    
 
 
 def initialize_H(qc, qubits):
@@ -50,7 +51,9 @@ def add_measurement(qc, what, name):
     qc.compose(meas, inplace=True, qubits=what)    
  
 def diffusion(qc: QuantumCircuit, search_space, output_qubit):
+    cccz = MCMT('z',len(search_space),len(output_qubit))
     """Apply a diffusion circuit to the register 's' in qc"""
+    
     qc.h(search_space)
     qc.x(search_space)
  
@@ -59,7 +62,20 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
  
     qc.x(search_space)
     qc.h(search_space)
- 
+    
+    """
+    qc.h(search_space)
+    qc.x(search_space)
+
+
+    MCZGate = ZGate().control(len(search_space))
+    qc.append(MCZGate, search_space[0:]+[output_qubit])
+    
+    #qc.mcx(search_space, output_qubit)
+    """
+
+    qc.x(search_space)
+    qc.h(search_space)
 
 
 
@@ -68,7 +84,7 @@ def execute_on_Fake_IBM(qc, num_shots=300):
     from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
     # ###
     TOKEN = os.environ["IBM_TOKEN"]
-    OPTIMIZATION_LEVEL=2  # the higher, the longer it will take to transpile
+    OPTIMIZATION_LEVEL=3  # the higher, the longer it will take to transpile
     instance= "ibm-q/open/main"    
     service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN, instance=instance)    
     #print(service.backends())
@@ -90,28 +106,38 @@ def execute_on_Fake_IBM(qc, num_shots=300):
 
     return countsIBM, real_backend
 
-def execute_on_real_IBM(qc, num_shots=1000):     
-    
+def execute_on_real_IBM(qc, num_shots=False):     
+    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+
     TOKEN = os.environ["IBM_TOKEN"]
     OPTIMIZATION_LEVEL=3  # the higher, the longer it will take to transpile
     instance= "ibm-q/open/main"    
     service = QiskitRuntimeService(channel="ibm_quantum", token=TOKEN, instance=instance)    
     logger.info ("Sending real JOB to IBM")
     backend = service.least_busy(operational=True, simulator=False)
+
+    shots = 1024
+    groverCircuit_transpiled = transpile(qc, backend, optimization_level=OPTIMIZATION_LEVEL)
+
+    """
+    #pm = generate_preset_pass_manager(optimization_level=OPTIMIZATION_LEVEL, backend=backend)
+    logger.info ("... transpiling...")
+    isa_circuit = pm.run(qc)    
+    print(f">>> Circuit ops (ISA): {isa_circuit.count_ops()}")
     #return {'01': 685, '10': 739, '11': 684, '00': 692}, backend
 
     logger.info(backend)
+    """
+    # Sampler
     sampler = Sampler(mode=backend)
-    #sampler.options.default_shots = num_shots
-    logger.info ("... transpiling...")
+    # Set default shots
+    if num_shots:
+        sampler.options.default_shots = num_shots
+        job = sampler.run([groverCircuit_transpiled], shots=num_shots)
+    else:
+        job = sampler.run([groverCircuit_transpiled])
 
 
-    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
- 
-    pm = generate_preset_pass_manager(optimization_level=OPTIMIZATION_LEVEL, backend=backend)
-    isa_circuit = pm.run(qc)
-    print(f">>> Circuit ops (ISA): {isa_circuit.count_ops()}")
-    job = sampler.run([isa_circuit])
     logger.info(f"job id: {job.job_id()}")
     print(f"job id: {job.job_id()}")
     job_result = job.result()
@@ -156,17 +182,18 @@ def execute_on_IONQ(qc, num_shots=500):
     
     simulator_backend = provider.get_backend("ionq_simulator")
 
+    circuit = transpile(qc, backend=simulator_backend)
  
     OPTIMIZATION_LEVEL=3
      
     print ("Sending real JOB to IONQ")
     if qc.num_qubits<26:
-        job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
+        job = simulator_backend.run(circuit, shots=num_shots, extra_query_params={
             "noise": {"model": "aria-1"}}
             #"noise": {"model": "ideal"}}
         )
     else:
-        job = simulator_backend.run(qc, shots=num_shots, extra_query_params={
+        job = simulator_backend.run(circuit, shots=num_shots, extra_query_params={
             "noise": {"model": "ideal"}}
         )    
 
@@ -198,7 +225,15 @@ def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
             XNOR(qc, reg1[bit_index], reg2[bit_index], check_temporary[temporary_check_index])            
 
 
-    qc.mcx(used_bits + list(additional_qubits), output[0])    
+    if output:
+        # 
+        all_bits=[]
+        for each in used_bits + list(additional_qubits):
+            all_bits.append(each)
+        MCZGate = ZGate().control(len(all_bits))
+        qc.append(MCZGate, all_bits[0:]+[output[0]])
+    #qc.mcx(used_bits + list(additional_qubits), output[0])    
+    
 
 
     # Uncompute
