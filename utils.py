@@ -64,7 +64,7 @@ def create_positions(map, search_row, inp_pattern_row, search_col, inp_pattern_c
         def __repr__(self):
             MAP_ITEMS=["%s%s" %(item._register.name, item._index) for item in self.element]
             COMPARE_ITEMS=["%s%s" %(item._register.name, item._index) for item in self.compare_to]
-            return " (%s|%s[%s|%s]<%s|%s>) " %(self.row, self.col, self.type, MAP_ITEMS, COMPARE_ITEMS, self.compare_to_str)
+            return " (r:%s|c:%s[t:%s|%s]<%s|%s>) " %(self.row, self.col, self.type, MAP_ITEMS, COMPARE_ITEMS, self.compare_to_str)
 
     index=-1
     for base_row_index in range(GRID_HEIGHT-len(inp_pattern_col)+1):

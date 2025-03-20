@@ -286,7 +286,7 @@ def oracle(qc, search_space, positions, check_temporary, output):
         checkEqual(qc, check_list, check_temporary, output, search_space)        
 
         # Repeat for restoring state to check_temporary
-        checkEqual(qc, check_list, check_temporary, None, search_space)        
+        #checkEqual(qc, check_list, check_temporary, None, search_space)        
                 
         # Restore search_space
         if flipped_s:

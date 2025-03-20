@@ -54,7 +54,8 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
     cccz = MCMT('z',len(search_space),len(output_qubit))
     """Apply a diffusion circuit to the register 's' in qc"""
     
-    
+
+    """
     qc.h(search_space)
     qc.x(search_space)
  
@@ -72,12 +73,9 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
     MCZGate = ZGate().control(len(search_space))
     qc.append(MCZGate, search_space[0:]+[output_qubit])
     
-    #qc.mcx(search_space, output_qubit)
-    
 
     qc.x(search_space)
     qc.h(search_space)
-    """
 
 
 def execute_on_Fake_IBM(qc, num_shots=300):     
@@ -228,12 +226,12 @@ def checkEqual(qc, check_list, check_temporary, output, additional_qubits):
 
     if output:
         # 
-        all_bits=[]
-        for each in used_bits + list(additional_qubits):
-            all_bits.append(each)
-        MCZGate = ZGate().control(len(all_bits))
-        qc.append(MCZGate, all_bits[0:]+[output[0]])
-    #qc.mcx(used_bits + list(additional_qubits), output[0])    
+        #all_bits=[]
+        #for each in used_bits + list(additional_qubits):
+        #    all_bits.append(each)
+        #MCZGate = ZGate().control(len(all_bits))
+        #qc.append(MCZGate, all_bits[0:]+[output[0]])
+        qc.mcx(used_bits + list(additional_qubits), output[0])    
     
 
     # Uncompute

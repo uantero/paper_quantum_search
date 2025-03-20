@@ -2,8 +2,8 @@
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2
-inp_pattern_row=  ["1"]
-inp_pattern_col=  ["1"]
+inp_pattern_row=  ["1", "1"]
+inp_pattern_col=  ["1", "1"]
 
 
 # THE MAP
@@ -18,14 +18,15 @@ inp_map_string = [
 '''
 
 inp_map_string = [
-    ["0 0 0  "] ,
-    ["0 0 1  "] ,
+    ["0 0 0 "] ,
+    ["0 0 1 "] ,
+    ["0 1 1 "] ,
 ]
 
 CONFIG = {
     "TEST_ORACLE": {
-        "enable": False, # Used to validate the Oracle"
-        "check_pos_row": 2, # Validate the oracle with this value (check if output=1)
+        "enable": False, # Used to validate the Oracle
+        "check_pos_row": 1, # Validate the oracle with this value (check if output=1)
         "check_pos_col": 1
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
