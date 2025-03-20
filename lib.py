@@ -54,6 +54,7 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
     cccz = MCMT('z',len(search_space),len(output_qubit))
     """Apply a diffusion circuit to the register 's' in qc"""
     
+    """
     qc.h(search_space)
     qc.x(search_space)
  
@@ -71,8 +72,7 @@ def diffusion(qc: QuantumCircuit, search_space, output_qubit):
     MCZGate = ZGate().control(len(search_space))
     qc.append(MCZGate, search_space[0:]+[output_qubit])
     
-    #qc.mcx(search_space, output_qubit)
-    """
+    #qc.mcx(search_space, output_qubit)    
 
     qc.x(search_space)
     qc.h(search_space)
