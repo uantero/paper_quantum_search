@@ -2,8 +2,8 @@
 # ROBOT'S SENSORS (horizontal & vertical)
 # A single data is centered in the robot
 # From there... if row length is 2, each data is shown with the robot in the middle-->   1 r 2
-inp_pattern_row=  ["1", "1"]
-inp_pattern_col=  ["1", "1"]
+inp_pattern_row=  ["1"]
+inp_pattern_col=  ["1"]
 
 
 # THE MAP
@@ -18,10 +18,8 @@ inp_map_string = [
 '''
 
 inp_map_string = [
-    ["0 0 0 0 "],
-    ["0 0 0 0 "],
-    ["0 1 1 0 "],
-    ["0 0 1 0 "],
+    ["0 0 0 "],
+    ["0 0 1 "],
 ]
 
 CONFIG = {
@@ -32,7 +30,7 @@ CONFIG = {
     },
     "MAKE_IT_REAL": True, # Sent it to some provider? (if False: simulate locally)
     "AVAILABLE_PROVIDERS": ["IONQ", "IBM", "FAKEIBM", "SIMULATE", "BLUEQUBIT"],
-    "SELECTED_PROVIDER": "BLUEQUBIT",
+    "SELECTED_PROVIDER": "SIMULATE",
     "USE_JOB_ID": "", # Used to recall results from an external service
     "REUSE_ROW_COL_QUBITS": inp_pattern_row==inp_pattern_col, # If set to True, Row and Col patterns are the same, so Qubits are reused
 }    
